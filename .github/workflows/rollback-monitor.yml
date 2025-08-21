@@ -1,0 +1,158 @@
+name: Rollback Status Monitor
+
+on:
+  schedule:
+    # Run every 5 minutes to check for failed deployments
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to check'
+        required: false
+        type: choice
+        options:
+          - staging
+          - production
+          - both
+        default: 'both'
+
+env:
+  AWS_REGION: 'us-east-1'
+  PROJECT_NAME: 'aws-infra-demo'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  monitor-deployments:
+    name: Monitor Deployment Status
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-session-name: GitHubActions-Rollback-Monitor
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Check deployment status
+        run: |
+          chmod +x scripts/*.sh
+          
+          check_environment() {
+            local env="$1"
+            echo "🔍 Checking $env deployment status..."
+            
+            # Get recent deployments
+            recent_deployments=$(./scripts/deployment-metadata.sh list -e "$env" | head -5)
+            
+            if [[ -z "$recent_deployments" ]]; then
+              echo "ℹ️  No deployments found for $env"
+              return 0
+            fi
+            
+            echo "$recent_deployments"
+            
+            # Check for failed deployments in the last hour
+            failed_deployments=$(echo "$recent_deployments" | grep "failed" | head -3)
+            
+            if [[ -n "$failed_deployments" ]]; then
+              echo "⚠️  Failed deployments detected in $env:"
+              echo "$failed_deployments"
+              
+              # Check if automatic rollback was already triggered
+              rollback_files=$(aws s3 ls "s3://aws-infra-demo-artifacts/rollbacks/$env/" --region "$AWS_REGION" 2>/dev/null | tail -3)
+              
+              if [[ -n "$rollback_files" ]]; then
+                echo "ℹ️  Recent rollback activity detected"
+                echo "$rollback_files"
+              else
+                echo "⚠️  No recent rollback activity found"
+              fi
+            else
+              echo "✅ No failed deployments in recent history for $env"
+            fi
+            
+            echo "---"
+          }
+          
+          # Check environments based on input
+          if [[ "${{ inputs.environment }}" == "staging" || "${{ inputs.environment }}" == "both" || -z "${{ inputs.environment }}" ]]; then
+            check_environment "staging"
+          fi
+          
+          if [[ "${{ inputs.environment }}" == "production" || "${{ inputs.environment }}" == "both" || -z "${{ inputs.environment }}" ]]; then
+            check_environment "production"
+          fi
+
+      - name: Check rollback health
+        run: |
+          echo "🏥 Checking rollback system health..."
+          
+          # Verify rollback scripts are executable and valid
+          if [[ -x "scripts/rollback.sh" ]]; then
+            echo "✅ Rollback script is executable"
+          else
+            echo "❌ Rollback script is not executable"
+            exit 1
+          fi
+          
+          if [[ -x "scripts/rollback-validation.sh" ]]; then
+            echo "✅ Rollback validation script is executable"
+          else
+            echo "❌ Rollback validation script is not executable"
+            exit 1
+          fi
+          
+          if [[ -x "scripts/deployment-metadata.sh" ]]; then
+            echo "✅ Deployment metadata script is executable"
+          else
+            echo "❌ Deployment metadata script is not executable"
+            exit 1
+          fi
+          
+          # Test AWS connectivity
+          if aws sts get-caller-identity &>/dev/null; then
+            echo "✅ AWS connectivity verified"
+          else
+            echo "❌ AWS connectivity failed"
+            exit 1
+          fi
+          
+          # Check S3 bucket accessibility
+          if aws s3 ls "s3://aws-infra-demo-artifacts/" --region "$AWS_REGION" &>/dev/null; then
+            echo "✅ S3 artifacts bucket accessible"
+          else
+            echo "❌ S3 artifacts bucket not accessible"
+            exit 1
+          fi
+          
+          echo "✅ Rollback system health check passed"
+
+      - name: Generate monitoring report
+        if: always()
+        run: |
+          report_timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          
+          monitoring_report=$(cat << EOF
+          {
+            "monitoring_timestamp": "$report_timestamp",
+            "monitoring_type": "rollback_system",
+            "workflow_run_id": "${{ github.run_id }}",
+            "triggered_by": "${{ github.actor }}",
+            "system_status": "${{ job.status }}",
+            "environments_checked": "${{ inputs.environment || 'both' }}"
+          }
+          EOF
+          )
+          
+          echo "$monitoring_report" | aws s3 cp - \
+            "s3://aws-infra-demo-artifacts/monitoring/rollback-monitor-$(date +%Y%m%d-%H%M%S).json" \
+            --region "$AWS_REGION" || echo "Failed to upload monitoring report"
+          
+          echo "📊 Monitoring report generated"

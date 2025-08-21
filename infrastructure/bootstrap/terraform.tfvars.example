@@ -1,0 +1,10 @@
+# Copy this file to terraform.tfvars and update the values
+
+# Your GitHub repository in the format "owner/repo"
+github_repository = "your-github-username/aws-infra-demo"
+
+# AWS region (optional, defaults to us-east-1)
+aws_region = "us-east-1"
+
+# Project name (optional, defaults to aws-infra-demo)
+project_name = "aws-infra-demo"
