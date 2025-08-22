@@ -1,5 +1,6 @@
 name: Test AWS Authentication
 
+# Test OIDC authentication with updated IAM permissions
 on:
   workflow_dispatch:
   push:
