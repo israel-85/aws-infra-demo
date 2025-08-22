@@ -13,6 +13,9 @@ provider "aws" {
   region = var.aws_region
 }
 
+# Get current AWS account ID
+data "aws_caller_identity" "current" {}
+
 # Local values for consistent tagging
 locals {
   common_tags = {
@@ -34,10 +37,10 @@ module "github_oidc" {
 
 # S3 bucket for Terraform state storage - staging
 resource "aws_s3_bucket" "terraform_state_staging" {
-  bucket = "${var.project_name}-terraform-state-staging"
+  bucket = "${var.project_name}-terraform-state-staging-${data.aws_caller_identity.current.account_id}"
 
   tags = merge(local.common_tags, {
-    Name        = "${var.project_name}-terraform-state-staging"
+    Name        = "${var.project_name}-terraform-state-staging-${data.aws_caller_identity.current.account_id}"
     Environment = "staging"
     Purpose     = "Terraform State"
   })
@@ -75,10 +78,10 @@ resource "aws_s3_bucket_public_access_block" "terraform_state_staging" {
 
 # S3 bucket for Terraform state storage - production
 resource "aws_s3_bucket" "terraform_state_production" {
-  bucket = "${var.project_name}-terraform-state-production"
+  bucket = "${var.project_name}-terraform-state-production-${data.aws_caller_identity.current.account_id}"
 
   tags = merge(local.common_tags, {
-    Name        = "${var.project_name}-terraform-state-production"
+    Name        = "${var.project_name}-terraform-state-production-${data.aws_caller_identity.current.account_id}"
     Environment = "production"
     Purpose     = "Terraform State"
   })
