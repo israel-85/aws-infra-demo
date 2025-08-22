@@ -107,9 +107,18 @@ resource "aws_iam_role_policy" "github_actions_policy" {
         Action = [
           # Secrets Manager permissions
           "secretsmanager:GetSecretValue",
-          "secretsmanager:DescribeSecret"
+          "secretsmanager:DescribeSecret",
+          "secretsmanager:ListSecrets"
         ]
         Resource = "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.project_name}/*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          # Secrets Manager list permissions (account level)
+          "secretsmanager:ListSecrets"
+        ]
+        Resource = "*"
       },
       {
         Effect = "Allow"
