@@ -180,8 +180,9 @@ EOF
 
 chmod +x /opt/deploy.sh
 
-# Signal that the instance is ready
-/opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource AutoScalingGroup --region ${AWS::Region} || true
+# Signal that the instance is ready (using Terraform variables)
+# Note: This is a placeholder for instance readiness signaling
+echo "Instance deployment completed for ${project_name}-${environment}" >> /var/log/user-data.log
 
 # Log completion
 echo "User data script completed at $(date)" >> /var/log/user-data.log
