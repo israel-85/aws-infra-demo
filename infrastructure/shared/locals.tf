@@ -3,7 +3,6 @@ locals {
     Project     = var.project_name
     Environment = var.environment
     ManagedBy   = "Terraform"
-    CreatedAt   = timestamp()
   }
 
   # Generate availability zones if not provided
