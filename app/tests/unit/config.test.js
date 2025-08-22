@@ -27,7 +27,8 @@ describe('Config Module', () => {
     // Port might be set by environment, so check it's a valid port number
     expect(typeof config.port).toBe('string');
     expect(parseInt(config.port)).toBeGreaterThan(0);
-    expect(config.nodeEnv).toBe('development');
+    // NODE_ENV is set to 'test' during testing
+    expect(['development', 'test']).toContain(config.nodeEnv);
     expect(config.awsRegion).toBe('us-east-1');
     expect(config.projectName).toBe('aws-infra-demo');
     expect(config.appVersion).toBe('1.0.0');
