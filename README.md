@@ -2,6 +2,8 @@
 
 This repository demonstrates a complete AWS infrastructure setup using Terraform Infrastructure as Code (IaC) with a comprehensive CI/CD pipeline using GitHub Actions. The project includes a sample Node.js application deployed to staging and production environments with automated testing, security scanning, and rollback capabilities.
 
+**✨ Recently Updated**: Infrastructure now supports dynamic multi-account deployments with OIDC authentication and account-specific S3 state buckets. Multi-account backend system tested and verified.
+
 ## Architecture Overview
 
 ### Infrastructure Components
