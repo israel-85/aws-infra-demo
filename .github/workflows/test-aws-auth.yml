@@ -1,0 +1,61 @@
+name: Test AWS Authentication
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop]
+    paths: ['.github/workflows/test-aws-auth.yml']
+
+env:
+  AWS_REGION: 'us-east-1'
+
+permissions:
+  id-token: write   # Required for JWT token handling and OIDC authentication
+  contents: read    # Required for repository checkout operations
+
+jobs:
+  test-aws-auth:
+    name: Test AWS OIDC Authentication
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-TestAuth
+
+      - name: Test AWS CLI access
+        run: |
+          echo "Testing AWS CLI access..."
+          aws sts get-caller-identity
+          echo "✅ AWS authentication successful!"
+
+      - name: Test S3 access
+        run: |
+          echo "Testing S3 access..."
+          aws s3 ls | head -10
+          echo "✅ S3 access successful!"
+
+      - name: Test DynamoDB access
+        run: |
+          echo "Testing DynamoDB access..."
+          aws dynamodb list-tables --region ${{ env.AWS_REGION }}
+          echo "✅ DynamoDB access successful!"
+
+      - name: Verify Terraform state buckets
+        run: |
+          echo "Verifying Terraform state buckets exist..."
+          aws s3 ls s3://aws-infra-demo-terraform-state-staging-730335587648/ || echo "Staging bucket not accessible"
+          aws s3 ls s3://aws-infra-demo-terraform-state-production-730335587648/ || echo "Production bucket not accessible"
+          echo "✅ Terraform state bucket verification complete!"
+
+      - name: Test Secrets Manager access
+        run: |
+          echo "Testing Secrets Manager access..."
+          aws secretsmanager list-secrets --region ${{ env.AWS_REGION }} --max-items 5
+          echo "✅ Secrets Manager access successful!"
