@@ -21,8 +21,9 @@ output "target_group_arn" {
 output "alb_logs_bucket" {
   description = "S3 bucket for ALB access logs"
   value       = var.enable_alb_logs ? aws_s3_bucket.alb_logs[0].bucket : null
-}out
-put "autoscaling_group_arn" {
+}
+
+output "autoscaling_group_arn" {
   description = "ARN of the Auto Scaling Group"
   value       = aws_autoscaling_group.app.arn
 }

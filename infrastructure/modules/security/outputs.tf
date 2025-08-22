@@ -16,8 +16,9 @@ output "rds_security_group_id" {
 output "vpc_endpoints_security_group_id" {
   description = "ID of the VPC endpoints security group"
   value       = aws_security_group.vpc_endpoints.id
-}output "ec2
-_role_arn" {
+}
+
+output "ec2_role_arn" {
   description = "ARN of the EC2 IAM role"
   value       = aws_iam_role.ec2_role.arn
 }

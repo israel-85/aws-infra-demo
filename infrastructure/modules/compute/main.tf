@@ -189,8 +189,9 @@ resource "aws_lb" "main_with_logs" {
   }
 
   depends_on = [aws_s3_bucket_policy.alb_logs]
-}#
- Data source for latest Amazon Linux 2 AMI
+}
+
+# Data source for latest Amazon Linux 2 AMI
 data "aws_ami" "amazon_linux" {
   most_recent = true
   owners      = ["amazon"]

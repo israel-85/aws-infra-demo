@@ -26,8 +26,9 @@ output "internet_gateway_id" {
 output "nat_gateway_ids" {
   description = "IDs of the NAT Gateways"
   value       = aws_nat_gateway.main[*].id
-}output 
-"public_nacl_id" {
+}
+
+output "public_nacl_id" {
   description = "ID of the public network ACL"
   value       = aws_network_acl.public.id
 }

@@ -151,8 +151,9 @@ resource "aws_security_group" "vpc_endpoints" {
   lifecycle {
     create_before_destroy = true
   }
-}# 
-IAM Role for EC2 instances
+}
+
+# IAM Role for EC2 instances
 resource "aws_iam_role" "ec2_role" {
   name = "${var.project_name}-${var.environment}-ec2-role"
 
