@@ -81,6 +81,14 @@ resource "aws_iam_role_policy" "github_actions_policy" {
       {
         Effect = "Allow"
         Action = [
+          # DynamoDB list permissions (account level)
+          "dynamodb:ListTables"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
           # EC2 permissions for infrastructure management
           "ec2:*",
           "elasticloadbalancing:*",
