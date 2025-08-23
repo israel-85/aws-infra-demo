@@ -290,27 +290,27 @@ jobs:
           echo "🔧 Use: gh workflow run rollback.yml -f environment=production"
           echo "🔧 Or: ./scripts/rollback.sh -e production"
 
-  # Notification Job
-  notify:
-    name: Send Notifications
-    runs-on: ubuntu-latest
-    needs: [setup, deploy]
-    if: always() && (needs.deploy.result == 'success' || needs.deploy.result == 'failure')
-    
-    steps:
-      - name: Notify deployment result
-        run: |
-          if [[ "${{ needs.deploy.result }}" == "success" ]]; then
-            echo "✅ Deployment to ${{ needs.setup.outputs.environment }} successful!"
-            echo "🔗 Application URL: ${{ needs.deploy.outputs.app_url }}"
-            echo "🎯 Environment: ${{ needs.setup.outputs.environment }}"
-            echo "💻 Instance Type: ${{ needs.setup.outputs.instance_type }}"
-            echo "📊 Instances: ${{ needs.setup.outputs.min_instances }}-${{ needs.setup.outputs.max_instances }}"
-          else
-            echo "❌ Deployment to ${{ needs.setup.outputs.environment }} failed!"
-            if [[ "${{ needs.setup.outputs.environment }}" == "staging" ]]; then
-              echo "🔄 Automatic rollback initiated"
-            else
-              echo "⚠️  Manual intervention required for production"
-            fi
-          fi
+  # Notification Job (disabled)
+  # notify:
+  #   name: Send Notifications
+  #   runs-on: ubuntu-latest
+  #   needs: [setup, deploy]
+  #   if: always() && (needs.deploy.result == 'success' || needs.deploy.result == 'failure')
+  #   
+  #   steps:
+  #     - name: Notify deployment result
+  #       run: |
+  #         if [[ "${{ needs.deploy.result }}" == "success" ]]; then
+  #           echo "✅ Deployment to ${{ needs.setup.outputs.environment }} successful!"
+  #           echo "🔗 Application URL: ${{ needs.deploy.outputs.app_url }}"
+  #           echo "🎯 Environment: ${{ needs.setup.outputs.environment }}"
+  #           echo "💻 Instance Type: ${{ needs.setup.outputs.instance_type }}"
+  #           echo "📊 Instances: ${{ needs.setup.outputs.min_instances }}-${{ needs.setup.outputs.max_instances }}"
+  #         else
+  #           echo "❌ Deployment to ${{ needs.setup.outputs.environment }} failed!"
+  #           if [[ "${{ needs.setup.outputs.environment }}" == "staging" ]]; then
+  #             echo "🔄 Automatic rollback initiated"
+  #           else
+  #             echo "⚠️  Manual intervention required for production"
+  #           fi
+  #         fi
