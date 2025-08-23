@@ -127,7 +127,18 @@ class SecretsService {
         }
       };
       
-      return { ...defaultConfig, ...secretData };
+      // Deep merge configuration objects
+      const mergedConfig = { ...defaultConfig };
+      for (const [key, value] of Object.entries(secretData)) {
+        if (typeof value === 'object' && value !== null && !Array.isArray(value) && 
+            typeof mergedConfig[key] === 'object' && mergedConfig[key] !== null && !Array.isArray(mergedConfig[key])) {
+          mergedConfig[key] = { ...mergedConfig[key], ...value };
+        } else {
+          mergedConfig[key] = value;
+        }
+      }
+      
+      return mergedConfig;
       
     } catch (error) {
       logger.error(`Failed to get app config: ${error.message}`);
@@ -293,14 +304,25 @@ class SecretsService {
       };
       
     } catch (error) {
+      // Extract the original error message from retry error messages
+      let errorMessage = error.message;
+      const retryMatch = errorMessage.match(/after \d+ attempts: (.+)$/);
+      if (retryMatch) {
+        errorMessage = retryMatch[1];
+      }
+      
       return {
         status: 'unhealthy',
         service: 'secrets-manager',
-        error: error.message,
+        error: errorMessage,
         timestamp: new Date().toISOString()
       };
     }
   }
 }
 
-module.exports = new SecretsService();
+// Export the class for testability
+module.exports = SecretsService;
+
+// Export a default instance for convenience
+module.exports.instance = new SecretsService();

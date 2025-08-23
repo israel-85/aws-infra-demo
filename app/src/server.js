@@ -5,7 +5,7 @@ const morgan = require('morgan');
 require('dotenv').config();
 
 const config = require('./config');
-const secretsService = require('./services/secretsService');
+const secretsService = require('./services/secretsService').instance;
 const { errorHandler, getErrorCount } = require('./middleware/errorHandler');
 
 const app = express();

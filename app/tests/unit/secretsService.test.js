@@ -3,11 +3,14 @@
  */
 
 // Mock AWS SDK before importing
+const mockSend = jest.fn();
+const mockSecretsManagerClient = jest.fn().mockImplementation(() => ({
+  send: mockSend
+}));
+
 jest.mock('@aws-sdk/client-secrets-manager', () => {
   return {
-    SecretsManagerClient: jest.fn().mockImplementation(() => ({
-      send: jest.fn()
-    })),
+    SecretsManagerClient: mockSecretsManagerClient,
     GetSecretValueCommand: jest.fn()
   };
 });
@@ -21,22 +24,22 @@ jest.mock('../../src/utils/logger', () => ({
 }));
 
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
-const secretsService = require('../../src/services/secretsService');
+const SecretsService = require('../../src/services/secretsService');
 const logger = require('../../src/utils/logger');
 
 describe('SecretsService', () => {
-  let mockSend;
+  let secretsService;
 
   beforeEach(() => {
-    mockSend = jest.fn();
-    SecretsManagerClient.mockImplementation(() => ({
-      send: mockSend
-    }));
+    // Reset all mocks
+    jest.clearAllMocks();
+    mockSend.mockReset();
+    
+    // Mock GetSecretValueCommand to return the params passed to it
     GetSecretValueCommand.mockImplementation((params) => params);
     
-    // Clear cache before each test
-    secretsService.clearCache();
-    jest.clearAllMocks();
+    // Create a fresh instance for each test
+    secretsService = new SecretsService();
   });
 
   afterEach(() => {
