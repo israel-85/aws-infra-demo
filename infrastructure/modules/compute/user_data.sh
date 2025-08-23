@@ -181,7 +181,7 @@ EOF
 chmod +x /opt/deploy.sh
 
 # Signal that the instance is ready
-/opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource AutoScalingGroup --region ${AWS::Region} || true
+/opt/aws/bin/cfn-signal -e $? --stack $${AWS::StackName} --resource AutoScalingGroup --region $${AWS::Region} || true
 
 # Log completion
 echo "User data script completed at $(date)" >> /var/log/user-data.log

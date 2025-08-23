@@ -182,10 +182,24 @@ data "aws_elb_service_account" "main" {}
 resource "aws_lb" "main_with_logs" {
   count = var.enable_alb_logs ? 1 : 0
 
+  name               = "${var.project_name}-${var.environment}-log"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [var.alb_security_group_id]
+  subnets            = var.public_subnet_ids
+
+  enable_deletion_protection = var.environment == "production" ? true : false
+
   access_logs {
     bucket  = aws_s3_bucket.alb_logs[0].bucket
     prefix  = "alb-logs"
     enabled = true
+  }
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-log"
+    Environment = var.environment
+    Project     = var.project_name
   }
 
   depends_on = [aws_s3_bucket_policy.alb_logs]

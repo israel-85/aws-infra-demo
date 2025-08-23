@@ -4,13 +4,6 @@ resource "aws_secretsmanager_secret" "app_config" {
   description             = "Application configuration secrets for ${var.environment}"
   recovery_window_in_days = var.recovery_window_in_days
 
-  # Enable automatic rotation if rotation configuration is provided
-  dynamic "rotation_rules" {
-    for_each = var.enable_rotation ? [1] : []
-    content {
-      automatically_after_days = var.rotation_days
-    }
-  }
 
   tags = var.tags
 }
@@ -22,13 +15,6 @@ resource "aws_secretsmanager_secret" "database_credentials" {
   description             = "Database credentials for ${var.environment}"
   recovery_window_in_days = var.recovery_window_in_days
 
-  # Enable automatic rotation for database credentials
-  dynamic "rotation_rules" {
-    for_each = var.enable_db_rotation ? [1] : []
-    content {
-      automatically_after_days = var.db_rotation_days
-    }
-  }
 
   tags = var.tags
 }

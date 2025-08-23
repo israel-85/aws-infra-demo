@@ -90,6 +90,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "artifacts" {
     id     = "artifact_lifecycle"
     status = "Enabled"
 
+    filter {
+      prefix = ""
+    }
+
     # Delete old versions after 30 days
     noncurrent_version_expiration {
       noncurrent_days = 30
