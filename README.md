@@ -5,6 +5,7 @@ This repository demonstrates a complete AWS infrastructure setup using Terraform
 ## Architecture Overview
 
 ### Infrastructure Components
+
 - **VPC** with public and private subnets across multiple availability zones
 - **Application Load Balancer** distributing traffic to EC2 instances
 - **EC2 instances** in Auto Scaling Groups for staging and production
@@ -15,6 +16,7 @@ This repository demonstrates a complete AWS infrastructure setup using Terraform
 - **NAT Gateways** for outbound internet access from private subnets
 
 ### CI/CD Pipeline
+
 - **Automated testing** on every code push with comprehensive test coverage
 - **Security scanning** with tfsec and dependency auditing (high severity threshold)
 - **Automatic deployment** to staging on develop branch merge
@@ -26,7 +28,7 @@ This repository demonstrates a complete AWS infrastructure setup using Terraform
 
 ## Project Structure
 
-```
+```text
 ├── infrastructure/           # Terraform Infrastructure as Code
 │   ├── modules/             # Reusable Terraform modules
 │   │   ├── networking/      # VPC, subnets, routing
@@ -61,6 +63,7 @@ Before deploying this infrastructure, ensure you have:
 ## Current Implementation Status
 
 This project demonstrates a production-ready AWS infrastructure setup with:
+
 - ✅ **Modular Terraform infrastructure** with networking, compute, security, storage, and secrets modules
 - ✅ **Sample Node.js application** with AWS SDK v3 integration and health endpoints
 - ✅ **GitHub Actions CI/CD pipeline** with security scanning and automated deployment
@@ -100,6 +103,7 @@ terraform apply
 ```
 
 After deployment, add the outputted IAM role ARN to your GitHub repository secrets:
+
 - Secret name: `AWS_ROLE_TO_ASSUME`
 - Secret value: The ARN from terraform output (e.g., `arn:aws:iam::123456789012:role/aws-infra-demo-github-actions-role`)
 
@@ -108,6 +112,7 @@ After deployment, add the outputted IAM role ARN to your GitHub repository secre
 ### 2. GitHub Actions Permissions
 
 The CI/CD pipeline is configured with the following permissions:
+
 - `id-token: write` - Required for JWT token handling and OIDC authentication
 - `contents: read` - Required for repository checkout operations
 
@@ -123,13 +128,7 @@ The secrets module supports comprehensive secret management with the following f
    - Non-sensitive application settings
    - Feature flags and configuration parameters
    - Always created for each environment
-
-2. **Database Credentials** (`database-credentials`)
-   - Database connection strings and credentials
-   - Optional creation via `create_database_secret` variable
-   - Supports automatic rotation
-
-3. **API Keys** (`api-keys`)
+2. **API Keys** (`api-keys`)
    - External service credentials and API tokens
    - Optional creation via `create_api_keys_secret` variable
    - Centralized management of third-party integrations
@@ -182,12 +181,14 @@ The secrets module includes a Python-based Lambda function for custom secret rot
 Before deploying environments, set up the GitHub OIDC authentication:
 
 **Option 1: Using the setup script (recommended)**
+
 ```bash
 # Run the automated setup script
 ./scripts/setup-oidc.sh
 ```
 
 **Option 2: Manual setup**
+
 ```bash
 cd infrastructure/bootstrap
 
@@ -317,6 +318,7 @@ The CI/CD pipeline includes comprehensive automatic rollback capabilities:
 ### Deployment Metadata Management
 
 The system tracks comprehensive deployment metadata:
+
 - **Deployment status tracking** (pending/success/failed)
 - **Git SHA and version correlation** for precise rollback targeting
 - **Artifact path tracking** for reliable deployment package retrieval
@@ -384,7 +386,9 @@ Regular rollback drills are recommended:
 The deployment pipeline includes comprehensive metadata tracking and automatic rollback capabilities:
 
 #### Deployment Metadata Tracking
+
 Every deployment creates detailed metadata records:
+
 ```bash
 # Metadata is automatically created during deployment
 ./scripts/deployment-metadata.sh create \
@@ -402,14 +406,18 @@ Every deployment creates detailed metadata records:
 ```
 
 #### Automatic Rollback Triggers
+
 The CI/CD pipeline automatically triggers rollbacks on:
+
 - **Deployment failures** during infrastructure or application deployment
 - **Failed smoke tests** after deployment completion
 - **Health check failures** during post-deployment validation
 - **Infrastructure validation errors** during Terraform apply
 
 #### GitHub Workflow Dispatch Integration
+
 Failed deployments automatically trigger the rollback workflow:
+
 ```yaml
 # Automatic rollback trigger (built into CI/CD pipeline)
 curl -X POST \
@@ -431,7 +439,7 @@ curl -X POST \
 
 The deployment and rollback system uses the following S3 structure:
 
-```
+```text
 aws-infra-demo-artifacts/
 ├── builds/                          # Build artifacts from CI/CD
 │   └── deployment-{git_sha}.tar.gz
@@ -499,11 +507,6 @@ Each deployment creates comprehensive metadata for tracking and rollback purpose
 # Clean up old metadata (keep last 30 days)
 ./scripts/deployment-metadata.sh cleanup -e production -d 30
 ```
-  - No long-lived AWS credentials stored in GitHub secrets
-  - Short-lived tokens with automatic rotation
-  - Scoped permissions based on repository and branch
-- **IAM roles** with least privilege access for all AWS services
-- **Multi-factor authentication** for sensitive operations
 
 ### Secret Management
 
@@ -514,6 +517,11 @@ Each deployment creates comprehensive metadata for tracking and rollback purpose
   - Application configuration secrets
   - Database credentials (separate secret)
   - API keys and external service credentials
+  - No long-lived AWS credentials stored in GitHub secrets
+  - Short-lived tokens with automatic rotation
+  - Scoped permissions based on repository and branch
+- **IAM roles** with least privilege access for all AWS services
+- **Multi-factor authentication** for sensitive operations
 - **Terraform references** to secrets without exposing values
 - **Environment-specific secrets** with proper access controls
 - **Recovery Protection**: 7-day recovery window to prevent accidental deletion
@@ -537,18 +545,12 @@ Each deployment creates comprehensive metadata for tracking and rollback purpose
 
 - **Infrastructure scanning** with tfsec for Terraform security compliance
 - **Dependency vulnerability scanning** with npm audit (high severity threshold)
+- **JWT-based authentication** for secure CI/CD pipeline access
+- **GitHub Actions permissions** following least privilege principles
 - **Regular security assessments** integrated into the deployment pipeline
 - **Automated security updates** through dependabot (recommended)
 - **Audit logging** with AWS CloudTrail
 - **Resource tagging** for governance and cost tracking
-
-### Security Scanning
-
-- **Infrastructure scanning** with tfsec for Terraform security compliance
-- **Dependency vulnerability scanning** with npm audit (high severity threshold)
-- **JWT-based authentication** for secure CI/CD pipeline access
-- **GitHub Actions permissions** following least privilege principles
-- **Regular security assessments** integrated into the deployment pipeline
 
 ## Monitoring and Logging
 
@@ -724,11 +726,13 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Technology Stack
 
 ### Infrastructure
+
 - **Terraform** 1.6.0 for Infrastructure as Code
 - **AWS** as cloud provider (default region: us-east-1)
 - **GitHub Actions** for CI/CD pipeline automation
 
 ### Application
+
 - **Node.js** 18.x with Express.js framework
 - **AWS SDK** (`@aws-sdk/client-secrets-manager`) for modern AWS service integration
 - **Security middleware**: Helmet, CORS, Morgan for request logging
@@ -736,12 +740,14 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - **Testing**: Jest for unit, integration, and smoke tests
 
 ### CI/CD Pipeline
+
 - **GitHub Actions** with JWT-based authentication
 - **tfsec** for Terraform security scanning
 - **npm audit** for dependency vulnerability scanning
 - **Codecov** for test coverage reporting
 
 ### AWS Services
+
 - **VPC** with multi-AZ public/private subnets
 - **Application Load Balancer** with health checks
 - **EC2** with Auto Scaling Groups
@@ -755,7 +761,9 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 The application provides comprehensive monitoring capabilities through dedicated endpoints:
 
 ### Health Check Endpoint (`/health`)
+
 Returns detailed application health information including:
+
 - Application status and uptime
 - Environment and version information
 - Request count and error count metrics
@@ -774,7 +782,9 @@ Returns detailed application health information including:
 ```
 
 ### Ready Check Endpoint (`/ready`)
+
 Lightweight endpoint for load balancer health checks:
+
 ```json
 {
   "status": "ready",
@@ -783,7 +793,9 @@ Lightweight endpoint for load balancer health checks:
 ```
 
 ### Metrics Endpoint (`/metrics`)
+
 Comprehensive performance and system metrics:
+
 ```json
 {
   "uptime": 3600000,
@@ -805,6 +817,7 @@ Comprehensive performance and system metrics:
 ```
 
 ### Monitoring Integration
+
 - **Load Balancer Health Checks**: Uses `/ready` endpoint for fast health verification
 - **Application Performance Monitoring**: `/metrics` endpoint provides data for CloudWatch integration
 - **Error Tracking**: Centralized error counting through middleware integration
@@ -815,12 +828,14 @@ Comprehensive performance and system metrics:
 The application uses the modern AWS SDK for improved performance and tree-shaking capabilities:
 
 ### Key Features
+
 - **Modular imports**: Only imports the specific services needed (`@aws-sdk/client-secrets-manager`)
 - **Modern async/await**: Uses `SecretsManagerClient` with `send()` method and command pattern
 - **Better performance**: Smaller bundle size and faster initialization
 - **TypeScript support**: Built-in TypeScript definitions
 
 ### Example Usage
+
 ```javascript
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
 
