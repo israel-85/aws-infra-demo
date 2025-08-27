@@ -18,10 +18,153 @@ permissions:
   contents: read    # Required for repository checkout operations
 
 jobs:
+  # Prerequisites Validation Job
+  validate-prerequisites:
+    name: Validate Prerequisites
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Validate AWS Role Secret
+        run: |
+          if [ -z "${{ secrets.AWS_ROLE_TO_ASSUME }}" ]; then
+            echo "❌ AWS_ROLE_TO_ASSUME secret is not configured"
+            echo "📋 Please add the IAM role ARN from bootstrap deployment:"
+            echo "   1. Go to Settings > Secrets and variables > Actions"
+            echo "   2. Add secret: AWS_ROLE_TO_ASSUME"
+            echo "   3. Value: arn:aws:iam::ACCOUNT:role/aws-infra-demo-github-actions-role"
+            echo ""
+            echo "💡 To get the role ARN, run from bootstrap directory:"
+            echo "   cd infrastructure/bootstrap"
+            echo "   terraform output github_actions_role_arn"
+            exit 1
+          else
+            echo "✅ AWS_ROLE_TO_ASSUME secret is configured"
+          fi
+
+  # Security Validation Job
+  security-validation:
+    name: Security Validation
+    runs-on: ubuntu-latest
+    needs: validate-prerequisites
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run tfsec security scan
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: infrastructure/
+          soft_fail: false
+          format: default
+          additional_args: --minimum-severity HIGH
+
+      - name: Install shellcheck
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Run shellcheck on scripts
+        run: |
+          echo "🔍 Running shellcheck on all bash scripts..."
+          find scripts/ -name "*.sh" -type f -exec shellcheck {} +
+          echo "✅ All scripts passed shellcheck validation"
+
+  # Terraform Validation Job
+  terraform-validation:
+    name: Terraform Validation
+    runs-on: ubuntu-latest
+    needs: validate-prerequisites
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-session-name: GitHubActions-TerraformValidation
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Test AWS credentials
+        run: |
+          echo "🔐 Testing AWS credentials..."
+          aws sts get-caller-identity
+          echo "✅ AWS credentials are valid"
+
+      - name: Terraform format check
+        run: |
+          echo "📝 Checking Terraform formatting..."
+          terraform fmt -check -recursive infrastructure/
+          echo "✅ All Terraform files are properly formatted"
+
+      - name: Terraform validate - Bootstrap
+        run: |
+          cd infrastructure/bootstrap
+          terraform init -backend=false
+          terraform validate
+          echo "✅ Bootstrap Terraform configuration is valid"
+
+      - name: Terraform validate - Staging
+        run: |
+          cd infrastructure/environments/staging
+          terraform init -backend=false
+          terraform validate
+          echo "✅ Staging Terraform configuration is valid"
+
+      - name: Terraform validate - Production
+        run: |
+          cd infrastructure/environments/production
+          terraform init -backend=false
+          terraform validate
+          echo "✅ Production Terraform configuration is valid"
+
+  # Script Permissions Validation Job
+  script-permissions:
+    name: Script Permissions Validation
+    runs-on: ubuntu-latest
+    needs: validate-prerequisites
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate script permissions and shebangs
+        run: |
+          echo "🔒 Validating script permissions and shebangs..."
+          
+          # Check that all .sh files are executable
+          for script in scripts/*.sh; do
+            if [ -f "$script" ]; then
+              if [ ! -x "$script" ]; then
+                echo "❌ Script $script is not executable"
+                exit 1
+              else
+                echo "✅ Script $script has proper permissions"
+              fi
+              
+              # Check shebang
+              if ! head -1 "$script" | grep -q '^#!/bin/bash\|^#!/usr/bin/env bash'; then
+                echo "❌ Script $script missing or invalid shebang"
+                exit 1
+              else
+                echo "✅ Script $script has valid shebang"
+              fi
+            fi
+          done
+          
+          echo "✅ All scripts have proper permissions and shebangs"
+
   # Environment Detection Job
   setup:
     name: Environment Setup
     runs-on: ubuntu-latest
+    needs: [validate-prerequisites, security-validation, terraform-validation, script-permissions]
     outputs:
       environment: ${{ steps.env.outputs.environment }}
       tf_workspace: ${{ steps.env.outputs.tf_workspace }}
