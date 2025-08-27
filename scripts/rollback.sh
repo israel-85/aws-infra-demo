@@ -412,14 +412,9 @@ EOF
             --instance-ids "$instance_id" \
             --document-name "AWS-RunShellScript" \
             --parameters "commands=[
-                'cd /opt/app',
-                'sudo systemctl stop app',
-                'sudo cp -r /opt/app /opt/app.backup.$(date +%Y%m%d-%H%M%S)',
-                'wget -O /tmp/rollback-artifact.tar.gz \"https://$ARTIFACTS_BUCKET.s3.$AWS_REGION.amazonaws.com/$artifact_path\"',
-                'sudo tar -xzf /tmp/rollback-artifact.tar.gz -C /opt/app --strip-components=1',
-                'sudo chown -R app:app /opt/app',
-                'sudo systemctl start app',
-                'rm -f /tmp/rollback-artifact.tar.gz'
+                'echo \"Starting nginx rollback deployment on instance $instance_id\"',
+                'sudo /opt/deploy.sh \"https://$ARTIFACTS_BUCKET.s3.$AWS_REGION.amazonaws.com/$artifact_path\" \"$environment\"',
+                'echo \"Rollback deployment completed on instance $instance_id\"'
             ]" \
             --region "$AWS_REGION" \
             --query 'Command.CommandId' \

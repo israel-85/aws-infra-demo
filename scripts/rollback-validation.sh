@@ -283,37 +283,17 @@ run_automated_tests() {
     
     local test_results=0
     
-    # Run smoke tests
-    if [[ -f "app/tests/smoke/deployment.test.js" ]]; then
-        log "Running deployment smoke tests..."
-        if (cd app && npm run test:smoke -- --testPathPattern=deployment 2>/dev/null); then
-            success "Deployment smoke tests passed"
+    # Run nginx deployment smoke tests
+    if [[ -f "app/tests/smoke/nginx-deployment.test.js" ]]; then
+        log "Running nginx deployment smoke tests..."
+        if (cd app && node tests/smoke/nginx-deployment.test.js 2>/dev/null); then
+            success "Nginx deployment smoke tests passed"
         else
-            error "Deployment smoke tests failed"
+            error "Nginx deployment smoke tests failed"
             test_results=1
         fi
-    fi
-    
-    # Run user workflow tests
-    if [[ -f "app/tests/smoke/userWorkflow.test.js" ]]; then
-        log "Running user workflow tests..."
-        if (cd app && npm run test:smoke -- --testPathPattern=userWorkflow 2>/dev/null); then
-            success "User workflow tests passed"
-        else
-            error "User workflow tests failed"
-            test_results=1
-        fi
-    fi
-    
-    # Run integration tests
-    if [[ -f "app/tests/integration/api.test.js" ]]; then
-        log "Running API integration tests..."
-        if (cd app && npm run test:integration 2>/dev/null); then
-            success "Integration tests passed"
-        else
-            error "Integration tests failed"
-            test_results=1
-        fi
+    else
+        log "No nginx deployment smoke tests found, skipping..."
     fi
     
     return $test_results
