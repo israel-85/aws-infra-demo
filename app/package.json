@@ -1,0 +1,28 @@
+{
+  "name": "aws-infra-demo-nginx",
+  "version": "1.0.0",
+  "description": "Simple nginx application for AWS infrastructure demo",
+  "main": "index.html",
+  "scripts": {
+    "start": "echo 'Static nginx application - use deployment scripts to run'",
+    "build": "echo 'Build completed - static files ready'",
+    "test": "npm run test:html",
+    "test:html": "echo 'Validating HTML structure...' && node validate-html.js",
+    "lint": "echo 'No linting needed for static files'",
+    "validate": "echo 'Validation completed'"
+  },
+  "dependencies": {},
+  "devDependencies": {},
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "nginx",
+    "static",
+    "aws",
+    "terraform",
+    "cicd"
+  ],
+  "author": "DevOps Team",
+  "license": "MIT"
+}

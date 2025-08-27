@@ -1,0 +1,406 @@
+name: CI/CD Pipeline (Staging-to-Production Promotion)
+
+# Deployment Strategy:
+# - develop branch push → staging environment (automatic)
+# - PR to main branch → production environment (manual approval via PR)
+
+on:
+  push:
+    branches: [develop]  # Only develop branch triggers automatic deployment
+  pull_request:
+    branches: [main]     # Only PRs to main trigger production deployment
+
+env:
+  AWS_REGION: 'us-east-1'
+
+permissions:
+  id-token: write   # Required for JWT token handling and OIDC authentication
+  contents: read    # Required for repository checkout operations
+
+jobs:
+  # Environment Detection Job
+  setup:
+    name: Environment Setup
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      tf_workspace: ${{ steps.env.outputs.tf_workspace }}
+      instance_type: ${{ steps.env.outputs.instance_type }}
+      min_instances: ${{ steps.env.outputs.min_instances }}
+      max_instances: ${{ steps.env.outputs.max_instances }}
+      run_full_tests: ${{ steps.env.outputs.run_full_tests }}
+    
+    steps:
+      - name: Determine Environment Configuration
+        id: env
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.base_ref }}" == "main" ]]; then
+            # Production deployment via PR to main
+            echo "environment=production" >> $GITHUB_OUTPUT
+            echo "tf_workspace=production" >> $GITHUB_OUTPUT
+            echo "instance_type=t3.medium" >> $GITHUB_OUTPUT
+            echo "min_instances=2" >> $GITHUB_OUTPUT
+            echo "max_instances=10" >> $GITHUB_OUTPUT
+            echo "run_full_tests=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/develop" && "${{ github.event_name }}" == "push" ]]; then
+            # Staging deployment from develop branch
+            echo "environment=staging" >> $GITHUB_OUTPUT
+            echo "tf_workspace=staging" >> $GITHUB_OUTPUT
+            echo "instance_type=t3.micro" >> $GITHUB_OUTPUT
+            echo "min_instances=1" >> $GITHUB_OUTPUT
+            echo "max_instances=3" >> $GITHUB_OUTPUT
+            echo "run_full_tests=false" >> $GITHUB_OUTPUT
+          else
+            # Default fallback (shouldn't happen with new triggers)
+            echo "environment=review" >> $GITHUB_OUTPUT
+            echo "tf_workspace=review" >> $GITHUB_OUTPUT
+            echo "instance_type=t3.micro" >> $GITHUB_OUTPUT
+            echo "min_instances=1" >> $GITHUB_OUTPUT
+            echo "max_instances=1" >> $GITHUB_OUTPUT
+            echo "run_full_tests=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Display Environment Configuration
+        run: |
+          echo "🎯 Target Environment: ${{ steps.env.outputs.environment }}"
+          echo "📦 Terraform Workspace: ${{ steps.env.outputs.tf_workspace }}"
+          echo "💻 Instance Type: ${{ steps.env.outputs.instance_type }}"
+          echo "📊 Instance Range: ${{ steps.env.outputs.min_instances }}-${{ steps.env.outputs.max_instances }}"
+          echo "🧪 Full Test Suite: ${{ steps.env.outputs.run_full_tests }}"
+
+  # Testing Job (Environment-Aware)
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: setup
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (for validation scripts)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Validate static files
+        run: |
+          cd app
+          npm run test
+
+      - name: Validate nginx configuration
+        run: |
+          cd app
+          # Install nginx and create nginx user to match production environment
+          sudo apt-get update && sudo apt-get install -y nginx
+          sudo useradd -r -s /bin/false nginx 2>/dev/null || true
+          
+          # Set environment variable for nginx configuration validation
+          export environment="${{ needs.setup.outputs.environment }}"
+          
+          # Test nginx configuration with environment variable available
+          sudo -E nginx -t -c "$(pwd)/nginx.conf"
+
+      - name: Static file validation completed
+        run: |
+          echo "Static files and nginx configuration validated successfully"
+
+  # Build Job
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    needs: [setup, test]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Prepare static files for deployment
+        run: |
+          cd app
+          echo "Static files ready for packaging"
+
+      - name: Create deployment package
+        run: |
+          cd app
+          tar -czf ../deployment-${{ github.sha }}.tar.gz .
+          
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-session-name: GitHubActions-Build-${{ needs.setup.outputs.environment }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload artifacts to S3
+        run: |
+          aws s3 cp deployment-${{ github.sha }}.tar.gz s3://aws-infra-demo-artifacts/builds/deployment-${{ github.sha }}.tar.gz
+
+  # Staging Deployment Job (Automatic from develop)
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [setup, build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && needs.setup.outputs.environment == 'staging'
+    environment: 
+      name: staging
+      url: ${{ steps.deploy.outputs.app_url }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-session-name: GitHubActions-staging
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+
+      - name: Create environment-specific Terraform variables
+        run: |
+          cd infrastructure/environments/staging
+          
+          # Create terraform.auto.tfvars with environment-specific values
+          cat > terraform.auto.tfvars << EOF
+          instance_type = "${{ needs.setup.outputs.instance_type }}"
+          min_size = ${{ needs.setup.outputs.min_instances }}
+          max_size = ${{ needs.setup.outputs.max_instances }}
+          environment = "staging"
+          
+          # Environment-specific tags
+          tags = {
+            Environment = "staging"
+            DeployedBy = "github-actions"
+            GitSHA = "${{ github.sha }}"
+            GitRef = "${{ github.ref_name }}"
+          }
+          EOF
+
+      - name: Terraform Init
+        run: |
+          cd infrastructure/environments/staging
+          terraform init
+
+      - name: Terraform Plan
+        run: |
+          cd infrastructure/environments/staging
+          terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        run: |
+          cd infrastructure/environments/staging
+          terraform apply -auto-approve tfplan
+
+      - name: Deploy application to staging
+        id: deploy
+        run: |
+          # Download deployment package
+          aws s3 cp s3://aws-infra-demo-artifacts/builds/deployment-${{ github.sha }}.tar.gz .
+          
+          # Deploy to instances
+          ./scripts/deploy.sh staging ${{ github.sha }}
+          
+          # Get ALB URL for staging
+          ALB_URL=$(cd infrastructure/environments/staging && terraform output -raw alb_dns_name)
+          echo "app_url=https://$ALB_URL" >> $GITHUB_OUTPUT
+
+      - name: Create deployment metadata
+        run: |
+          ./scripts/deployment-metadata.sh create \
+            -e staging \
+            -v "${{ github.ref_name }}" \
+            -s "${{ github.sha }}" \
+            -a "builds/deployment-${{ github.sha }}.tar.gz" \
+            -t pending
+
+      - name: Run staging validation tests
+        run: |
+          # Get ALB endpoint from Terraform outputs  
+          ALB_DNS=$(cd infrastructure/environments/staging && terraform output -raw alb_dns_name || echo "")
+          if [ -z "$ALB_DNS" ]; then
+            echo "Could not get ALB DNS name, skipping validation tests"
+            exit 1
+          fi
+          
+          echo "Testing staging deployment at: http://$ALB_DNS"
+          
+          # Basic health check
+          curl -f "http://$ALB_DNS/health" || exit 1
+          
+          # Verify staging environment content
+          curl -s "http://$ALB_DNS" | grep -qi "staging" || exit 1
+          
+          echo "Staging validation tests passed ✅"
+
+      - name: Update deployment status to success
+        if: success()
+        run: |
+          ./scripts/deployment-metadata.sh update \
+            -e staging \
+            -v "${{ github.ref_name }}" \
+            -t success
+
+      - name: Update deployment status to failed
+        if: failure()
+        run: |
+          ./scripts/deployment-metadata.sh update \
+            -e staging \
+            -v "${{ github.ref_name }}" \
+            -t failed
+
+      - name: Trigger automatic rollback on failure
+        if: failure()
+        run: |
+          echo "🚨 Staging deployment failed, initiating automatic rollback..."
+          
+          curl -X POST \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/rollback.yml/dispatches \
+            -d '{
+              "ref": "${{ github.ref }}",
+              "inputs": {
+                "environment": "staging",
+                "trigger_reason": "deployment_failure",
+                "failed_version": "${{ github.ref_name }}"
+              }
+            }' || echo "Failed to trigger automatic rollback workflow"
+
+  # Production Deployment Job (Only via PR to main)
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [setup, build]
+    if: github.event_name == 'pull_request' && github.base_ref == 'main' && needs.setup.outputs.environment == 'production'
+    environment: 
+      name: ${{ needs.setup.outputs.environment }}
+      url: ${{ steps.deploy.outputs.app_url }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-session-name: GitHubActions-production
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+
+      - name: Create environment-specific Terraform variables
+        run: |
+          cd infrastructure/environments/production
+          
+          # Create terraform.auto.tfvars with environment-specific values
+          cat > terraform.auto.tfvars << EOF
+          instance_type = "${{ needs.setup.outputs.instance_type }}"
+          min_size = ${{ needs.setup.outputs.min_instances }}
+          max_size = ${{ needs.setup.outputs.max_instances }}
+          environment = "production"
+          
+          # Environment-specific tags
+          tags = {
+            Environment = "production"
+            DeployedBy = "github-actions"
+            GitSHA = "${{ github.sha }}"
+            GitRef = "${{ github.ref_name }}"
+            DeploymentType = "pr-promotion"
+          }
+          EOF
+
+      - name: Terraform Init
+        run: |
+          cd infrastructure/environments/production
+          terraform init
+
+      - name: Terraform Plan
+        run: |
+          cd infrastructure/environments/production
+          terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        run: |
+          cd infrastructure/environments/production
+          terraform apply -auto-approve tfplan
+
+      - name: Deploy application to production
+        id: deploy
+        run: |
+          # Download deployment package
+          aws s3 cp s3://aws-infra-demo-artifacts/builds/deployment-${{ github.sha }}.tar.gz .
+          
+          # Deploy to instances
+          ./scripts/deploy.sh production ${{ github.sha }}
+          
+          # Get ALB URL for production
+          ALB_URL=$(cd infrastructure/environments/production && terraform output -raw alb_dns_name)
+          echo "app_url=https://$ALB_URL" >> $GITHUB_OUTPUT
+
+      - name: Create deployment metadata
+        run: |
+          ./scripts/deployment-metadata.sh create \
+            -e production \
+            -v "${{ github.ref_name }}" \
+            -s "${{ github.sha }}" \
+            -a "builds/deployment-${{ github.sha }}.tar.gz" \
+            -t pending
+
+      - name: Run comprehensive production smoke tests
+        run: |
+          # Get ALB endpoint from Terraform outputs
+          ALB_DNS=$(cd infrastructure/environments/production && terraform output -raw alb_dns_name || echo "")
+          if [ -z "$ALB_DNS" ]; then
+            echo "Could not get ALB DNS name, skipping smoke tests"
+            exit 1
+          fi
+          
+          echo "Testing production deployment at: http://$ALB_DNS"
+          
+          # Test health endpoint
+          curl -f "http://$ALB_DNS/health" | grep -q "healthy" || exit 1
+          
+          # Test main page shows production environment
+          curl -s "http://$ALB_DNS" | grep -qi "production" || exit 1
+          
+          # Additional production-specific validations
+          curl -f "http://$ALB_DNS/ready" || exit 1
+          curl -f "http://$ALB_DNS/metrics" || exit 1
+          
+          echo "Production smoke tests passed ✅"
+
+      - name: Update deployment status to success
+        if: success()
+        run: |
+          ./scripts/deployment-metadata.sh update \
+            -e production \
+            -v "${{ github.ref_name }}" \
+            -t success
+
+      - name: Update deployment status to failed
+        if: failure()
+        run: |
+          ./scripts/deployment-metadata.sh update \
+            -e production \
+            -v "${{ github.ref_name }}" \
+            -t failed
+
+      - name: Notify production failure (manual rollback required)
+        if: failure()
+        run: |
+          echo "🚨 Production deployment failed!"
+          echo "⚠️  Manual rollback decision required."
+          echo "🔧 Use: gh workflow run rollback.yml -f environment=production"
+          echo "🔧 Or: ./scripts/rollback.sh -e production"
+          echo "📋 PR: ${{ github.event.pull_request.html_url }}"
