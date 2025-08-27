@@ -1,6 +1,6 @@
 # AWS Infrastructure Demo with Terraform and CI/CD
 
-This repository demonstrates a complete AWS infrastructure setup using Terraform Infrastructure as Code (IaC) with a comprehensive CI/CD pipeline using GitHub Actions. The project includes a sample Node.js application deployed to staging and production environments with automated testing, security scanning, and rollback capabilities.
+This repository demonstrates a complete AWS infrastructure setup using Terraform Infrastructure as Code (IaC) with a comprehensive CI/CD pipeline using GitHub Actions. The project includes a sample Nginx static application deployed to staging and production environments with automated testing, security scanning, and rollback capabilities.
 
 ## Architecture Overview
 
@@ -18,7 +18,7 @@ This repository demonstrates a complete AWS infrastructure setup using Terraform
 ### CI/CD Pipeline
 
 - **Automated testing** on every code push with comprehensive test coverage
-- **Security scanning** with tfsec and dependency auditing (high severity threshold)
+- **Security scanning** with tfsec and HTML validation
 - **Automatic deployment** to staging on develop branch merge
 - **Manual approval** required for production deployment with environment protection
 - **Artifact storage** in S3 with SHA-based versioning and metadata tracking
@@ -41,7 +41,7 @@ This repository demonstrates a complete AWS infrastructure setup using Terraform
 │   │   └── production/      # Production environment
 │   └── shared/              # Shared variables and locals
 ├── .github/workflows/       # GitHub Actions CI/CD pipelines
-├── app/                     # Sample Node.js application
+├── app/                     # Sample Nginx static application
 │   ├── src/                 # Application source code
 │   ├── tests/               # Test suites
 │   └── package.json         # Dependencies and scripts
@@ -56,7 +56,7 @@ Before deploying this infrastructure, ensure you have:
 1. **AWS Account** with appropriate permissions for VPC, EC2, ALB, S3, and Secrets Manager
 2. **AWS CLI** configured with credentials (for local development and setup)
 3. **Terraform** >= 1.6.0 installed locally
-4. **Node.js** >= 18.0.0 for local development and testing
+4. **Docker** (optional) for local testing of containerized applications
 5. **GitHub repository** with Actions enabled and environment protection configured
 6. **GitHub Secrets** configured for AWS authentication
 
@@ -65,11 +65,11 @@ Before deploying this infrastructure, ensure you have:
 This project demonstrates a production-ready AWS infrastructure setup with:
 
 - ✅ **Modular Terraform infrastructure** with networking, compute, security, storage, and secrets modules
-- ✅ **Sample Node.js application** with AWS SDK v3 integration and health endpoints
+- ✅ **Sample Nginx static application** with health endpoints and security headers
 - ✅ **GitHub Actions CI/CD pipeline** with security scanning and automated deployment
 - ✅ **AWS Secrets Manager integration** with automatic rotation and multiple secret types
 - ✅ **Lambda-based secret rotation** with customizable rotation intervals
-- ✅ **Comprehensive test suites** (unit, integration, smoke tests) with Jest framework
+- ✅ **Comprehensive test suites** (HTML validation, smoke tests) for static content validation
 - ✅ **Deployment metadata management** with status tracking and audit trails
 - ✅ **Automatic rollback automation** with failure detection and recovery workflows
 - ✅ **Rollback validation scripts** for post-rollback verification and testing
@@ -249,14 +249,14 @@ The CI/CD pipeline uses GitHub Actions with secure JWT-based authentication to A
 ### Pipeline Stages
 
 1. **Test Stage**
-   - Runs unit and integration tests using Jest
-   - Uploads test coverage reports to Codecov
-   - Uses Node.js 18 with npm caching for performance
+   - Runs HTML validation and syntax checks
+   - Validates static content structure
+   - Uses lightweight validation tools for performance
    - Fails fast if tests don't pass
 
 2. **Security Scan Stage**
    - Scans Terraform code with tfsec for security vulnerabilities
-   - Audits npm dependencies for known vulnerabilities (high severity)
+   - Validates HTML and static content for security issues
    - Runs in parallel with test stage for efficiency
    - Blocks deployment if critical issues are found
 
@@ -544,7 +544,7 @@ Each deployment creates comprehensive metadata for tracking and rollback purpose
 ### Security Scanning
 
 - **Infrastructure scanning** with tfsec for Terraform security compliance
-- **Dependency vulnerability scanning** with npm audit (high severity threshold)
+- **Static content validation** with HTML and configuration checks
 - **JWT-based authentication** for secure CI/CD pipeline access
 - **GitHub Actions permissions** following least privilege principles
 - **Regular security assessments** integrated into the deployment pipeline
@@ -560,9 +560,8 @@ Each deployment creates comprehensive metadata for tracking and rollback purpose
 - **Dedicated metrics endpoint** (`/metrics`) providing real-time application performance data
 - **Request tracking** with automatic request counting and uptime monitoring
 - **Error tracking** with centralized error counting and alerting capabilities
-- **Application logs** with structured logging using Morgan middleware
-- **AWS SDK integration** for modern, efficient AWS service communication
-- **Secrets Manager integration** using `SecretsManagerClient` and `GetSecretValueCommand`
+- **Nginx access logs** with structured logging for request monitoring
+- **Static content serving** with optimized caching and compression
 - **Performance metrics** including memory usage, CPU usage, and system resource monitoring
 - **Deployment verification** through automated smoke tests
 
@@ -622,7 +621,7 @@ aws s3 ls s3://aws-infra-demo-artifacts/builds/ --recursive
 # Check deployment metadata for specific version
 ./scripts/deployment-metadata.sh list -e production
 
-# Check application logs on EC2 instances
+# Check nginx logs on EC2 instances
 aws logs tail /aws/ec2/aws-infra-demo/production --follow
 
 # Validate current deployment
@@ -632,26 +631,24 @@ aws logs tail /aws/ec2/aws-infra-demo/production --follow
 #### Application Issues
 
 ```bash
-# Check application logs
+# Check nginx access and error logs
 aws logs tail /aws/ec2/aws-infra-demo/production --follow
 
 # Verify health endpoints with metrics
 curl https://your-alb-dns/health
 curl https://your-alb-dns/ready
 
-# Check comprehensive application metrics
+# Check basic service metrics
 curl https://your-alb-dns/metrics
 
 # Check load balancer target health
 aws elbv2 describe-target-health --target-group-arn <target-group-arn>
 
-# Test application endpoints
+# Test static content endpoints
 curl https://your-alb-dns/
-curl https://your-alb-dns/api/config
 
-# Test AWS SDK integration
-# The /api/config endpoint demonstrates Secrets Manager integration
-# using the modern AWS SDK with SecretsManagerClient
+# Test static content serving
+# The main page serves a responsive HTML application
 
 # Check secret rotation status
 aws secretsmanager describe-secret --secret-id aws-infra-demo/production/app-config
@@ -733,17 +730,17 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ### Application
 
-- **Node.js** 18.x with Express.js framework
-- **AWS SDK** (`@aws-sdk/client-secrets-manager`) for modern AWS service integration
-- **Security middleware**: Helmet, CORS, Morgan for request logging
-- **Application monitoring**: Built-in metrics tracking with request counting, error tracking, and performance monitoring
-- **Testing**: Jest for unit, integration, and smoke tests
+- **Nginx** web server for static content delivery
+- **Static HTML/CSS/JS** with responsive design and modern styling
+- **Security headers**: X-Frame-Options, X-Content-Type-Options, X-XSS-Protection, Referrer-Policy
+- **Application monitoring**: Health check endpoints for load balancer integration
+- **Testing**: HTML validation and smoke tests for static content
 
 ### CI/CD Pipeline
 
 - **GitHub Actions** with JWT-based authentication
 - **tfsec** for Terraform security scanning
-- **npm audit** for dependency vulnerability scanning
+- **HTML validation** for static content verification
 - **Codecov** for test coverage reporting
 
 ### AWS Services
@@ -762,22 +759,18 @@ The application provides comprehensive monitoring capabilities through dedicated
 
 ### Health Check Endpoint (`/health`)
 
-Returns detailed application health information including:
+Returns basic health information for load balancer integration:
 
-- Application status and uptime
-- Environment and version information
-- Request count and error count metrics
+- Service status
+- Environment information
 - Timestamp for monitoring freshness
 
 ```json
 {
   "status": "healthy",
+  "service": "nginx",
   "timestamp": "2024-01-15T10:30:00.000Z",
-  "environment": "production",
-  "version": "1.0.0",
-  "uptime": 3600000,
-  "requestCount": 1250,
-  "errorCount": 3
+  "environment": "production"
 }
 ```
 
@@ -794,58 +787,24 @@ Lightweight endpoint for load balancer health checks:
 
 ### Metrics Endpoint (`/metrics`)
 
-Comprehensive performance and system metrics:
+Basic service metrics for monitoring:
 
 ```json
 {
-  "uptime": 3600000,
-  "requestCount": 1250,
-  "errorCount": 3,
-  "memoryUsage": {
-    "rss": 45678912,
-    "heapTotal": 20971520,
-    "heapUsed": 15728640,
-    "external": 1048576
-  },
-  "cpuUsage": {
-    "user": 123456,
-    "system": 78901
-  },
+  "service": "nginx",
   "environment": "production",
-  "version": "1.0.0"
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "status": "running"
 }
 ```
 
 ### Monitoring Integration
 
 - **Load Balancer Health Checks**: Uses `/ready` endpoint for fast health verification
-- **Application Performance Monitoring**: `/metrics` endpoint provides data for CloudWatch integration
-- **Error Tracking**: Centralized error counting through middleware integration
-- **Request Analytics**: Automatic request counting for traffic analysis
+- **Service Monitoring**: `/metrics` endpoint provides basic service status for monitoring
+- **Access Logging**: Nginx access logs provide request tracking and analytics
+- **Static Content Delivery**: Optimized serving of HTML, CSS, and JavaScript files
 
-## AWS SDK Integration
-
-The application uses the modern AWS SDK for improved performance and tree-shaking capabilities:
-
-### Key Features
-
-- **Modular imports**: Only imports the specific services needed (`@aws-sdk/client-secrets-manager`)
-- **Modern async/await**: Uses `SecretsManagerClient` with `send()` method and command pattern
-- **Better performance**: Smaller bundle size and faster initialization
-- **TypeScript support**: Built-in TypeScript definitions
-
-### Example Usage
-
-```javascript
-const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
-
-const secretsClient = new SecretsManagerClient({
-  region: process.env.AWS_REGION || 'us-east-1'
-});
-
-const command = new GetSecretValueCommand({ SecretId: secretName });
-const secret = await secretsClient.send(command);
-```
 
 ## Additional Resources
 
@@ -853,6 +812,6 @@ const secret = await secretsClient.send(command);
 - [AWS SDK for JavaScript](https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/)
 - [Terraform Best Practices](https://www.terraform.io/docs/cloud/guides/recommended-practices/index.html)
 - [GitHub Actions Documentation](https://docs.github.com/en/actions)
-- [Node.js Security Best Practices](https://nodejs.org/en/docs/guides/security/)
+- [Nginx Security Best Practices](https://nginx.org/en/docs/http/ngx_http_ssl_module.html)
 - [AWS Secrets Manager Documentation](https://docs.aws.amazon.com/secretsmanager/)
 - [GitHub Environment Protection Rules](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment)

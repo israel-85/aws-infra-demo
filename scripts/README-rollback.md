@@ -9,6 +9,7 @@ This directory contains comprehensive rollback automation scripts for the AWS In
 The primary script for performing automated rollbacks to previous successful deployments.
 
 **Features:**
+
 - Identifies previous successful deployments from S3 metadata
 - Supports rollback to specific versions or automatic previous version selection
 - Performs deployment validation and health checks
@@ -16,6 +17,7 @@ The primary script for performing automated rollbacks to previous successful dep
 - Comprehensive logging and error handling
 
 **Usage:**
+
 ```bash
 # Rollback staging to previous version
 ./scripts/rollback.sh -e staging
@@ -38,12 +40,14 @@ The primary script for performing automated rollbacks to previous successful dep
 Manages deployment metadata required for rollback operations.
 
 **Features:**
+
 - Creates deployment metadata with version, SHA, and artifact information
 - Updates deployment status (pending, success, failed)
 - Lists deployment history
 - Cleans up old metadata files
 
 **Usage:**
+
 ```bash
 # Create deployment metadata
 ./scripts/deployment-metadata.sh create -e staging -v v1.2.3 -s abc123 -a deployments/staging/deployment-abc123.tar.gz
@@ -63,6 +67,7 @@ Manages deployment metadata required for rollback operations.
 Comprehensive validation script to verify rollback success.
 
 **Features:**
+
 - Validates infrastructure state (ASG, ALB, instances)
 - Performs application health checks
 - Runs automated test suites
@@ -70,6 +75,7 @@ Comprehensive validation script to verify rollback success.
 - Generates validation reports
 
 **Usage:**
+
 ```bash
 # Validate rollback to specific version
 ./scripts/rollback-validation.sh -e staging -v v1.2.3
@@ -84,6 +90,7 @@ Comprehensive validation script to verify rollback success.
 ## Prerequisites
 
 ### Required Tools
+
 - AWS CLI v2 (configured with appropriate credentials)
 - `jq` for JSON processing
 - `curl` for HTTP requests
@@ -91,6 +98,7 @@ Comprehensive validation script to verify rollback success.
 - Node.js and npm (for running automated tests)
 
 ### AWS Permissions
+
 The scripts require the following AWS permissions:
 
 ```json
@@ -129,6 +137,7 @@ The scripts require the following AWS permissions:
 ```
 
 ### Environment Variables
+
 Set these environment variables for customization:
 
 ```bash
@@ -139,18 +148,21 @@ export AWS_REGION="us-east-1"
 ## Rollback Process Flow
 
 ### 1. Pre-Rollback Validation
+
 - Verify AWS credentials and permissions
 - Check target environment exists
 - Validate rollback target availability
 - Confirm artifact integrity
 
 ### 2. Rollback Execution
+
 - Download target deployment artifact
 - Deploy to Auto Scaling Group instances via SSM
 - Update instance tags with new version
 - Create rollback metadata record
 
 ### 3. Post-Rollback Validation
+
 - Verify infrastructure state
 - Perform application health checks
 - Run automated test suites
@@ -179,7 +191,7 @@ The scripts use structured metadata stored in S3 to track deployments:
 
 The rollback system uses the following S3 structure:
 
-```
+```text
 aws-infra-demo-artifacts/
 ├── deployments/
 │   ├── staging/
@@ -290,6 +302,7 @@ jobs:
 ### Common Issues
 
 1. **AWS Credentials Not Found**
+
    ```bash
    aws configure list
    aws sts get-caller-identity
@@ -320,6 +333,7 @@ export DEBUG=1
 ### Log Files
 
 All scripts generate detailed log files in `/tmp/`:
+
 - `rollback-{timestamp}.log` - Main rollback operations
 - `rollback-validation-{environment}-{timestamp}.json` - Validation reports
 
@@ -334,6 +348,7 @@ All scripts generate detailed log files in `/tmp/`:
 ## Monitoring and Alerting
 
 Consider setting up CloudWatch alarms for:
+
 - Failed rollback operations
 - Health check failures post-rollback
 - Unusual rollback frequency
@@ -352,6 +367,7 @@ Consider setting up CloudWatch alarms for:
 ## Support
 
 For issues or questions about the rollback automation scripts:
+
 1. Check the troubleshooting section above
 2. Review log files for detailed error information
 3. Verify AWS permissions and configuration
