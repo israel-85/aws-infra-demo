@@ -18,14 +18,22 @@ permissions:
   contents: read    # Required for repository checkout operations
 
 jobs:
-  # Prerequisites Validation Job
-  validate-prerequisites:
-    name: Validate Prerequisites
+  # OIDC Validation Job - Single source of truth for AWS authentication validation
+  validate-oidc-setup:
+    name: Validate OIDC Setup
     runs-on: ubuntu-latest
+    outputs:
+      auth_validated: ${{ steps.auth_test.outputs.success }}
+      account_id: ${{ steps.validation.outputs.account_id }}
+      role_arn: ${{ steps.validation.outputs.role_arn }}
     
     steps:
       - name: Validate AWS Role Secret
+        id: validation
         run: |
+          echo "🔍 Validating OIDC prerequisites..."
+          
+          # Check if we have the required role ARN
           if [ -z "${{ secrets.AWS_ROLE_TO_ASSUME }}" ]; then
             echo "❌ AWS_ROLE_TO_ASSUME secret is not configured"
             echo "📋 Please add the IAM role ARN from bootstrap deployment:"
@@ -37,15 +45,87 @@ jobs:
             echo "   cd infrastructure/bootstrap"
             echo "   terraform output github_actions_role_arn"
             exit 1
-          else
-            echo "✅ AWS_ROLE_TO_ASSUME secret is configured"
           fi
+          
+          # Extract account ID from role ARN
+          ROLE_ARN="${{ secrets.AWS_ROLE_TO_ASSUME }}"
+          ACCOUNT_ID=$(echo "$ROLE_ARN" | sed 's/.*:::\([0-9]*\):.*/\1/')
+          
+          echo "🔑 Role ARN: $ROLE_ARN"
+          echo "🆔 Account ID: $ACCOUNT_ID"
+          echo "✅ AWS_ROLE_TO_ASSUME secret is configured"
+          
+          # Set outputs for other jobs
+          echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
+          echo "role_arn=$ROLE_ARN" >> $GITHUB_OUTPUT
+
+      - name: Test AWS Authentication
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-session-name: GitHubActions-OIDCValidation
+          aws-region: ${{ env.AWS_REGION }}
+        continue-on-error: true
+        id: aws_auth
+
+      - name: Handle Authentication Failure
+        if: steps.aws_auth.outcome == 'failure'
+        run: |
+          echo "🚨 AWS Authentication failed!"
+          echo ""
+          echo "Common causes and solutions:"
+          echo "1. OIDC Provider not found:"
+          echo "   - Run: cd infrastructure/bootstrap && terraform apply"
+          echo "   - Verify OIDC provider exists in AWS Console > IAM > Identity Providers"
+          echo ""
+          echo "2. Role ARN incorrect:"
+          echo "   - Current value: ${{ steps.validation.outputs.role_arn }}"
+          echo "   - Get correct ARN: cd infrastructure/bootstrap && terraform output github_actions_role_arn"
+          echo ""
+          echo "3. Repository mismatch:"
+          echo "   - Current repo: ${{ github.repository }}"
+          echo "   - Check infrastructure/bootstrap/terraform.tfvars github_repository setting"
+          echo ""
+          echo "4. Check trust policy allows this branch/ref:"
+          echo "   - Current ref: ${{ github.ref }}"
+          echo "   - Event: ${{ github.event_name }}"
+          echo ""
+          
+          # Try to provide more specific error context
+          echo "🔧 Debugging information:"
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch/Ref: ${{ github.ref }}"
+          echo "Event: ${{ github.event_name }}"
+          echo "Actor: ${{ github.actor }}"
+          
+          exit 1
+
+      - name: Validate OIDC Provider Setup
+        if: steps.aws_auth.outcome == 'success'
+        id: auth_test
+        run: |
+          echo "🔐 Testing AWS credentials..."
+          aws sts get-caller-identity
+          echo "✅ AWS credentials are valid"
+          
+          # Additional validation - check if OIDC provider exists
+          echo "🔍 Validating OIDC provider setup..."
+          OIDC_PROVIDERS=$(aws iam list-open-id-connect-providers --query 'OpenIDConnectProviderList[?contains(Arn, `token.actions.githubusercontent.com`)]' --output table)
+          if [ -z "$OIDC_PROVIDERS" ] || [ "$OIDC_PROVIDERS" = "None" ]; then
+            echo "⚠️  Warning: GitHub OIDC provider not found in this account"
+            echo "Run: cd infrastructure/bootstrap && terraform apply"
+          else
+            echo "✅ GitHub OIDC provider found"
+            echo "$OIDC_PROVIDERS"
+          fi
+          
+          echo "success=true" >> $GITHUB_OUTPUT
 
   # Security Validation Job
   security-validation:
     name: Security Validation
     runs-on: ubuntu-latest
-    needs: validate-prerequisites
+    needs: validate-oidc-setup
     
     steps:
       - name: Checkout code
@@ -73,7 +153,7 @@ jobs:
   terraform-validation:
     name: Terraform Validation
     runs-on: ubuntu-latest
-    needs: validate-prerequisites
+    needs: validate-oidc-setup
     
     steps:
       - name: Checkout code
@@ -90,12 +170,6 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           role-session-name: GitHubActions-TerraformValidation
           aws-region: ${{ env.AWS_REGION }}
-
-      - name: Test AWS credentials
-        run: |
-          echo "🔐 Testing AWS credentials..."
-          aws sts get-caller-identity
-          echo "✅ AWS credentials are valid"
 
       - name: Terraform format check
         run: |
@@ -128,7 +202,7 @@ jobs:
   script-permissions:
     name: Script Permissions Validation
     runs-on: ubuntu-latest
-    needs: validate-prerequisites
+    needs: validate-oidc-setup
     
     steps:
       - name: Checkout code
@@ -164,7 +238,7 @@ jobs:
   setup:
     name: Environment Setup
     runs-on: ubuntu-latest
-    needs: [validate-prerequisites, security-validation, terraform-validation, script-permissions]
+    needs: [validate-oidc-setup, security-validation, terraform-validation, script-permissions]
     outputs:
       environment: ${{ steps.env.outputs.environment }}
       tf_workspace: ${{ steps.env.outputs.tf_workspace }}
@@ -252,7 +326,7 @@ jobs:
   build:
     name: Build Application
     runs-on: ubuntu-latest
-    needs: [setup, test]
+    needs: [validate-oidc-setup, setup, test]
     
     steps:
       - name: Checkout code
@@ -283,7 +357,7 @@ jobs:
   deploy-staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
-    needs: [setup, build]
+    needs: [validate-oidc-setup, setup, build]
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && needs.setup.outputs.environment == 'staging'
     environment: 
       name: staging
@@ -420,7 +494,7 @@ jobs:
   deploy-production:
     name: Deploy to Production
     runs-on: ubuntu-latest
-    needs: [setup, build]
+    needs: [validate-oidc-setup, setup, build]
     if: github.event_name == 'pull_request' && github.base_ref == 'main' && needs.setup.outputs.environment == 'production'
     environment: 
       name: ${{ needs.setup.outputs.environment }}
