@@ -31,7 +31,7 @@ if [ ! -f "terraform.tfvars" ]; then
     echo "⚠️  Please edit infrastructure/bootstrap/terraform.tfvars and set your GitHub repository:"
     echo "   github_repository = \"your-username/your-repo-name\""
     echo ""
-    read -p "Press Enter after you've updated the terraform.tfvars file..."
+    read -r -p "Press Enter after you've updated the terraform.tfvars file..."
 fi
 
 # Initialize Terraform

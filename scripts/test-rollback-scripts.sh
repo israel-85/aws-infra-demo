@@ -32,7 +32,8 @@ warning() {
 # Function to test script syntax
 test_script_syntax() {
     local script="$1"
-    local script_name=$(basename "$script")
+    local script_name
+    script_name=$(basename "$script")
     
     log "Testing syntax for $script_name..."
     
@@ -48,7 +49,8 @@ test_script_syntax() {
 # Function to test script help output
 test_script_help() {
     local script="$1"
-    local script_name=$(basename "$script")
+    local script_name
+    script_name=$(basename "$script")
     
     log "Testing help output for $script_name..."
     
@@ -203,7 +205,8 @@ main() {
     local scripts=("scripts/rollback.sh" "scripts/deployment-metadata.sh" "scripts/rollback-validation.sh")
     
     for script in "${scripts[@]}"; do
-        local script_name=$(basename "$script")
+        local script_name
+    script_name=$(basename "$script")
         if test_script_syntax "$script"; then
             test_results+=("syntax-$script_name:PASS")
         else
@@ -214,7 +217,8 @@ main() {
     
     # Test help output
     for script in "${scripts[@]}"; do
-        local script_name=$(basename "$script")
+        local script_name
+    script_name=$(basename "$script")
         if test_script_help "$script"; then
             test_results+=("help-$script_name:PASS")
         else
@@ -249,8 +253,10 @@ main() {
     echo
     log "=== TEST RESULTS ==="
     for result in "${test_results[@]}"; do
-        local test_name=$(echo "$result" | cut -d':' -f1)
-        local test_status=$(echo "$result" | cut -d':' -f2)
+        local test_name
+        test_name=$(echo "$result" | cut -d':' -f1)
+        local test_status
+        test_status=$(echo "$result" | cut -d':' -f2)
         
         case "$test_status" in
             "PASS")

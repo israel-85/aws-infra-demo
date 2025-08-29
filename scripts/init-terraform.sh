@@ -6,7 +6,9 @@
 set -e
 
 ENVIRONMENT=${1:-staging}
+SCRIPT_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT=""
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 ENV_DIR="$PROJECT_ROOT/infrastructure/environments/$ENVIRONMENT"
 
@@ -17,6 +19,7 @@ fi
 
 # Get current AWS account ID
 echo "Getting current AWS account ID..."
+ACCOUNT_ID=""
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
 if [ -z "$ACCOUNT_ID" ]; then

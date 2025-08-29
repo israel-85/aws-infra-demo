@@ -134,7 +134,8 @@ update_status() {
     for metadata_key in $metadata_files; do
         local metadata_content
         if metadata_content=$(aws s3 cp "s3://$ARTIFACTS_BUCKET/$metadata_key" - --region "$AWS_REGION" 2>/dev/null); then
-            local file_version=$(echo "$metadata_content" | jq -r '.version // "unknown"')
+            local file_version
+            file_version=$(echo "$metadata_content" | jq -r '.version // "unknown"')
             if [[ "$file_version" == "$version" ]]; then
                 target_metadata_key="$metadata_key"
                 current_metadata="$metadata_content"
@@ -193,11 +194,16 @@ list_metadata() {
     for metadata_key in $metadata_files; do
         local metadata_content
         if metadata_content=$(aws s3 cp "s3://$ARTIFACTS_BUCKET/$metadata_key" - --region "$AWS_REGION" 2>/dev/null); then
-            local version=$(echo "$metadata_content" | jq -r '.version // "unknown"')
-            local git_sha=$(echo "$metadata_content" | jq -r '.git_sha[0:8] // "unknown"')
-            local status=$(echo "$metadata_content" | jq -r '.deployment_status // "unknown"')
-            local timestamp=$(echo "$metadata_content" | jq -r '.timestamp // "unknown"' | cut -d'T' -f1)
-            local deployed_by=$(echo "$metadata_content" | jq -r '.deployed_by // "unknown"')
+            local version
+            version=$(echo "$metadata_content" | jq -r '.version // "unknown"')
+            local git_sha
+            git_sha=$(echo "$metadata_content" | jq -r '.git_sha[0:8] // "unknown"')
+            local status
+            status=$(echo "$metadata_content" | jq -r '.deployment_status // "unknown"')
+            local timestamp
+            timestamp=$(echo "$metadata_content" | jq -r '.timestamp // "unknown"' | cut -d'T' -f1)
+            local deployed_by
+            deployed_by=$(echo "$metadata_content" | jq -r '.deployed_by // "unknown"')
             
             printf "%-20s %-12s %-10s %-20s %-15s\n" "$version" "$git_sha" "$status" "$timestamp" "$deployed_by"
         fi
@@ -236,9 +242,12 @@ cleanup_metadata() {
     for metadata_key in $metadata_files; do
         local metadata_content
         if metadata_content=$(aws s3 cp "s3://$ARTIFACTS_BUCKET/$metadata_key" - --region "$AWS_REGION" 2>/dev/null); then
-            local timestamp=$(echo "$metadata_content" | jq -r '.timestamp // "unknown"')
-            local status=$(echo "$metadata_content" | jq -r '.deployment_status // "unknown"')
-            local version=$(echo "$metadata_content" | jq -r '.version // "unknown"')
+            local timestamp
+            timestamp=$(echo "$metadata_content" | jq -r '.timestamp // "unknown"')
+            local status
+            status=$(echo "$metadata_content" | jq -r '.deployment_status // "unknown"')
+            local version
+            version=$(echo "$metadata_content" | jq -r '.version // "unknown"')
             
             # Always keep at least 5 successful deployments regardless of age
             if [[ "$status" == "success" && $kept_successful -lt 5 ]]; then

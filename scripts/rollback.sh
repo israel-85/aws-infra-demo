@@ -122,15 +122,20 @@ get_successful_deployments() {
         sort -k1,2 -r | \
         head -n "$limit" | \
         while read -r line; do
-            local s3_key=$(echo "$line" | awk '{print $4}')
+            local s3_key
+            s3_key=$(echo "$line" | awk '{print $4}')
             local metadata_content
             
             # Download and check metadata
             if metadata_content=$(aws s3 cp "s3://$ARTIFACTS_BUCKET/$s3_key" - --region "$AWS_REGION" 2>/dev/null); then
-                local status=$(echo "$metadata_content" | jq -r '.deployment_status // "unknown"')
-                local version=$(echo "$metadata_content" | jq -r '.version // "unknown"')
-                local timestamp=$(echo "$metadata_content" | jq -r '.timestamp // "unknown"')
-                local git_sha=$(echo "$metadata_content" | jq -r '.git_sha // "unknown"')
+                local status
+                status=$(echo "$metadata_content" | jq -r '.deployment_status // "unknown"')
+                local version
+                version=$(echo "$metadata_content" | jq -r '.version // "unknown"')
+                local timestamp
+                timestamp=$(echo "$metadata_content" | jq -r '.timestamp // "unknown"')
+                local git_sha
+                git_sha=$(echo "$metadata_content" | jq -r '.git_sha // "unknown"')
                 
                 if [[ "$status" == "success" ]]; then
                     echo "$metadata_content" | jq -c ". + {s3_key: \"$s3_key\"}"
@@ -242,8 +247,10 @@ validate_rollback_target() {
     local environment="$1"
     local target_deployment="$2"
     
-    local version=$(echo "$target_deployment" | jq -r '.version')
-    local git_sha=$(echo "$target_deployment" | jq -r '.git_sha')
+    local version
+    version=$(echo "$target_deployment" | jq -r '.version')
+    local git_sha
+    git_sha=$(echo "$target_deployment" | jq -r '.git_sha')
     local artifact_path="deployments/$environment/deployment-$git_sha.tar.gz"
     
     log "Validating rollback target: $version ($git_sha)"
@@ -258,7 +265,8 @@ validate_rollback_target() {
     fi
     
     # Validate artifact integrity if checksum is available
-    local expected_checksum=$(echo "$target_deployment" | jq -r '.checksum // empty')
+    local expected_checksum
+    expected_checksum=$(echo "$target_deployment" | jq -r '.checksum // empty')
     if [[ -n "$expected_checksum" ]]; then
         log "Validating artifact checksum..."
         local actual_checksum
@@ -328,9 +336,12 @@ execute_rollback() {
     local target_deployment="$2"
     local dry_run="$3"
     
-    local version=$(echo "$target_deployment" | jq -r '.version')
-    local git_sha=$(echo "$target_deployment" | jq -r '.git_sha')
-    local timestamp=$(echo "$target_deployment" | jq -r '.timestamp')
+    local version
+    version=$(echo "$target_deployment" | jq -r '.version')
+    local git_sha
+    git_sha=$(echo "$target_deployment" | jq -r '.git_sha')
+    local timestamp
+    timestamp=$(echo "$target_deployment" | jq -r '.timestamp')
     
     log "Executing rollback to version $version (SHA: $git_sha) in $environment"
     log "Target deployment timestamp: $timestamp"
@@ -358,7 +369,8 @@ EOF
 )
     
     # Store rollback metadata
-    local rollback_key="rollbacks/$environment/rollback-$(date +%Y%m%d-%H%M%S).json"
+    local rollback_key
+    rollback_key="rollbacks/$environment/rollback-$(date +%Y%m%d-%H%M%S).json"
     echo "$rollback_metadata" | aws s3 cp - "s3://$ARTIFACTS_BUCKET/$rollback_key" --region "$AWS_REGION"
     
     # Download target deployment artifact
@@ -613,8 +625,10 @@ main() {
         exit 1
     fi
     
-    local selected_version=$(echo "$target_deployment" | jq -r '.version')
-    local selected_sha=$(echo "$target_deployment" | jq -r '.git_sha')
+    local selected_version
+    selected_version=$(echo "$target_deployment" | jq -r '.version')
+    local selected_sha
+    selected_sha=$(echo "$target_deployment" | jq -r '.git_sha')
     
     log "Selected rollback target: $selected_version (SHA: $selected_sha)"
     

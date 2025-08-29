@@ -255,7 +255,8 @@ perform_health_check() {
             # Validate health response
             local health_response
             if health_response=$(curl -f -s --max-time 10 "$health_url" 2>/dev/null); then
-                local health_status=$(echo "$health_response" | jq -r '.status // "unknown"')
+                local health_status
+                health_status=$(echo "$health_response" | jq -r '.status // "unknown"')
                 if [[ "$health_status" == "healthy" ]]; then
                     success "Application is healthy"
                     return 0

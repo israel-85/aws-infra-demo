@@ -76,8 +76,10 @@ validate_infrastructure() {
         return 1
     fi
     
-    local desired_capacity=$(echo "$asg_status" | jq -r '.DesiredCapacity // 0')
-    local health_check_type=$(echo "$asg_status" | jq -r '.HealthCheckType // "unknown"')
+    local desired_capacity
+    desired_capacity=$(echo "$asg_status" | jq -r '.DesiredCapacity // 0')
+    local health_check_type
+    health_check_type=$(echo "$asg_status" | jq -r '.HealthCheckType // "unknown"')
     
     log "ASG Status - Desired Capacity: $desired_capacity, Health Check: $health_check_type"
     
@@ -89,7 +91,8 @@ validate_infrastructure() {
         --output text \
         --region "$AWS_REGION")
     
-    local instance_count=$(echo "$running_instances" | wc -w)
+    local instance_count
+    instance_count=$(echo "$running_instances" | wc -w)
     
     if [[ $instance_count -eq 0 ]]; then
         error "No running instances found in ASG"
@@ -135,8 +138,10 @@ validate_infrastructure() {
         return 1
     fi
     
-    local alb_state=$(echo "$alb_status" | jq -r '.State // "unknown"')
-    local alb_dns=$(echo "$alb_status" | jq -r '.DNSName // "unknown"')
+    local alb_state
+    alb_state=$(echo "$alb_status" | jq -r '.State // "unknown"')
+    local alb_dns
+    alb_dns=$(echo "$alb_status" | jq -r '.DNSName // "unknown"')
     
     if [[ "$alb_state" != "active" ]]; then
         error "ALB is not active. Current state: $alb_state"
@@ -194,8 +199,10 @@ validate_application_health() {
     fi
     
     local base_url="http://$alb_dns"
-    local start_time=$(date +%s)
-    local end_time=$((start_time + timeout))
+    local start_time
+    start_time=$(date +%s)
+    local end_time
+    end_time=$((start_time + timeout))
     
     # Test health endpoint
     log "Testing health endpoint: $base_url/health"
@@ -212,8 +219,10 @@ validate_application_health() {
     # Validate health response
     local health_response
     if health_response=$(curl -f -s --max-time 10 "$base_url/health" 2>/dev/null); then
-        local health_status=$(echo "$health_response" | jq -r '.status // "unknown"')
-        local app_version=$(echo "$health_response" | jq -r '.version // "unknown"')
+        local health_status
+        health_status=$(echo "$health_response" | jq -r '.status // "unknown"')
+        local app_version
+        app_version=$(echo "$health_response" | jq -r '.version // "unknown"')
         
         if [[ "$health_status" == "healthy" ]]; then
             success "Health check passed - Status: $health_status, Version: $app_version"
@@ -230,7 +239,8 @@ validate_application_health() {
     log "Testing ready endpoint: $base_url/ready"
     local ready_response
     if ready_response=$(curl -f -s --max-time 10 "$base_url/ready" 2>/dev/null); then
-        local ready_status=$(echo "$ready_response" | jq -r '.status // "unknown"')
+        local ready_status
+        ready_status=$(echo "$ready_response" | jq -r '.status // "unknown"')
         
         if [[ "$ready_status" == "ready" ]]; then
             success "Ready check passed - Status: $ready_status"
@@ -322,9 +332,12 @@ validate_rollback_metadata() {
     if [[ -n "$latest_rollback" ]]; then
         local rollback_metadata
         if rollback_metadata=$(aws s3 cp "s3://$ARTIFACTS_BUCKET/rollbacks/$environment/$latest_rollback" - --region "$AWS_REGION" 2>/dev/null); then
-            local target_version=$(echo "$rollback_metadata" | jq -r '.target_version // "unknown"')
-            local rollback_timestamp=$(echo "$rollback_metadata" | jq -r '.rollback_timestamp // "unknown"')
-            local initiated_by=$(echo "$rollback_metadata" | jq -r '.rollback_initiated_by // "unknown"')
+            local target_version
+            target_version=$(echo "$rollback_metadata" | jq -r '.target_version // "unknown"')
+            local rollback_timestamp
+            rollback_timestamp=$(echo "$rollback_metadata" | jq -r '.rollback_timestamp // "unknown"')
+            local initiated_by
+            initiated_by=$(echo "$rollback_metadata" | jq -r '.rollback_initiated_by // "unknown"')
             
             log "Latest rollback metadata:"
             log "  Target Version: $target_version"
@@ -350,8 +363,10 @@ generate_validation_report() {
     
     log "Generating validation report..."
     
-    local report_timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    local report_file="/tmp/rollback-validation-$environment-$(date +%Y%m%d-%H%M%S).json"
+    local report_timestamp
+    report_timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    local report_file
+    report_file="/tmp/rollback-validation-$environment-$(date +%Y%m%d-%H%M%S).json"
     
     # Create validation report
     local report
@@ -373,7 +388,8 @@ EOF
     echo "$report" > "$report_file"
     
     # Upload report to S3
-    local report_key="validation-reports/$environment/rollback-validation-$(date +%Y%m%d-%H%M%S).json"
+    local report_key
+    report_key="validation-reports/$environment/rollback-validation-$(date +%Y%m%d-%H%M%S).json"
     if aws s3 cp "$report_file" "s3://$ARTIFACTS_BUCKET/$report_key" --region "$AWS_REGION" 2>/dev/null; then
         success "Validation report uploaded: s3://$ARTIFACTS_BUCKET/$report_key"
     else
