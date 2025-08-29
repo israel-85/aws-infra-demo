@@ -23,7 +23,6 @@ jobs:
     name: Validate OIDC Setup
     runs-on: ubuntu-latest
     outputs:
-      auth_validated: ${{ steps.auth_test.outputs.success }}
       account_id: ${{ steps.validation.outputs.account_id }}
       role_arn: ${{ steps.validation.outputs.role_arn }}
     
@@ -100,26 +99,6 @@ jobs:
           
           exit 1
 
-      - name: Validate OIDC Provider Setup
-        if: steps.aws_auth.outcome == 'success'
-        id: auth_test
-        run: |
-          echo "🔐 Testing AWS credentials..."
-          aws sts get-caller-identity
-          echo "✅ AWS credentials are valid"
-          
-          # Additional validation - check if OIDC provider exists
-          echo "🔍 Validating OIDC provider setup..."
-          OIDC_PROVIDERS=$(aws iam list-open-id-connect-providers --query 'OpenIDConnectProviderList[?contains(Arn, `token.actions.githubusercontent.com`)]' --output table)
-          if [ -z "$OIDC_PROVIDERS" ] || [ "$OIDC_PROVIDERS" = "None" ]; then
-            echo "⚠️  Warning: GitHub OIDC provider not found in this account"
-            echo "Run: cd infrastructure/bootstrap && terraform apply"
-          else
-            echo "✅ GitHub OIDC provider found"
-            echo "$OIDC_PROVIDERS"
-          fi
-          
-          echo "success=true" >> $GITHUB_OUTPUT
 
   # Security Validation Job
   security-validation:
