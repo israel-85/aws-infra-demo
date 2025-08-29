@@ -20,7 +20,7 @@ output "terraform_locks_table_name" {
 
 output "setup_instructions" {
   description = "Instructions for completing the setup"
-  value = <<-EOT
+  value       = <<-EOT
     
     Setup Instructions:
     

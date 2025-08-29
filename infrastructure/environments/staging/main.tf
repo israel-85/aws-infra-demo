@@ -1,6 +1,6 @@
 terraform {
   required_version = ">= 1.6.0"
-  
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -52,12 +52,12 @@ locals {
 module "networking" {
   source = "../../modules/networking"
 
-  project_name           = var.project_name
-  environment           = var.environment
-  vpc_cidr              = var.vpc_cidr
-  availability_zones    = local.availability_zones
-  public_subnet_cidrs   = local.public_subnet_cidrs
-  private_subnet_cidrs  = local.private_subnet_cidrs
+  project_name         = var.project_name
+  environment          = var.environment
+  vpc_cidr             = var.vpc_cidr
+  availability_zones   = local.availability_zones
+  public_subnet_cidrs  = local.public_subnet_cidrs
+  private_subnet_cidrs = local.private_subnet_cidrs
 }
 
 # Security Module
@@ -94,15 +94,15 @@ module "secrets" {
 module "compute" {
   source = "../../modules/compute"
 
-  project_name                = var.project_name
-  environment                = var.environment
-  vpc_id                     = module.networking.vpc_id
-  public_subnet_ids          = module.networking.public_subnet_ids
-  private_subnet_ids         = module.networking.private_subnet_ids
-  alb_security_group_id      = module.security.alb_security_group_id
-  ec2_security_group_id      = module.security.ec2_security_group_id
-  ec2_instance_profile_name  = module.security.ec2_instance_profile_name
-  ssl_certificate_arn        = var.ssl_certificate_arn
+  project_name              = var.project_name
+  environment               = var.environment
+  vpc_id                    = module.networking.vpc_id
+  public_subnet_ids         = module.networking.public_subnet_ids
+  private_subnet_ids        = module.networking.private_subnet_ids
+  alb_security_group_id     = module.security.alb_security_group_id
+  ec2_security_group_id     = module.security.ec2_security_group_id
+  ec2_instance_profile_name = module.security.ec2_instance_profile_name
+  ssl_certificate_arn       = var.ssl_certificate_arn
   enable_alb_logs           = var.enable_alb_logs
   instance_type             = var.instance_type
   min_size                  = var.min_size
