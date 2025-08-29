@@ -95,7 +95,7 @@ get_deployment_history() {
     aws s3api list-objects-v2 \
         --bucket "$ARTIFACTS_BUCKET" \
         --prefix "deployments/$environment/" \
-        --query 'Contents[?contains(Key, `deployment-`) && contains(Key, `.tar.gz`)].[Key,LastModified,Size]' \
+        --query $'Contents[?contains(Key, `deployment-`) && contains(Key, `.tar.gz`)].[Key,LastModified,Size]' \
         --output table \
         --region "$AWS_REGION" \
         2>/dev/null || {
@@ -185,7 +185,7 @@ get_current_version() {
         --filters "Name=tag:Environment,Values=$environment" \
                   "Name=tag:Project,Values=$PROJECT_NAME" \
                   "Name=instance-state-name,Values=running" \
-        --query 'Reservations[0].Instances[0].Tags[?Key==`Version`].Value' \
+        --query $'Reservations[0].Instances[0].Tags[?Key==`Version`].Value' \
         --output text \
         --region "$AWS_REGION" 2>/dev/null || echo "unknown")
     
@@ -390,7 +390,7 @@ EOF
     local current_instances
     current_instances=$(aws autoscaling describe-auto-scaling-groups \
         --auto-scaling-group-names "$asg_name" \
-        --query 'AutoScalingGroups[0].Instances[?LifecycleState==`InService`].InstanceId' \
+        --query $'AutoScalingGroups[0].Instances[?LifecycleState==`InService`].InstanceId' \
         --output text \
         --region "$AWS_REGION")
     

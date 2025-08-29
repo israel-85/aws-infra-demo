@@ -106,7 +106,7 @@ get_target_instances() {
     
     instances=$(aws autoscaling describe-auto-scaling-groups \
         --auto-scaling-group-names "$asg_name" \
-        --query 'AutoScalingGroups[0].Instances[?LifecycleState==`InService`].InstanceId' \
+        --query $'AutoScalingGroups[0].Instances[?LifecycleState==`InService`].InstanceId' \
         --output text \
         --region "$AWS_REGION" 2>/dev/null || echo "")
     

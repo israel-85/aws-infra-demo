@@ -87,7 +87,7 @@ validate_infrastructure() {
     local running_instances
     running_instances=$(aws autoscaling describe-auto-scaling-groups \
         --auto-scaling-group-names "$asg_name" \
-        --query 'AutoScalingGroups[0].Instances[?LifecycleState==`InService`].InstanceId' \
+        --query $'AutoScalingGroups[0].Instances[?LifecycleState==`InService`].InstanceId' \
         --output text \
         --region "$AWS_REGION")
     
@@ -107,7 +107,7 @@ validate_infrastructure() {
         local instance_version
         instance_version=$(aws ec2 describe-instances \
             --instance-ids "$instance_id" \
-            --query 'Reservations[0].Instances[0].Tags[?Key==`Version`].Value' \
+            --query $'Reservations[0].Instances[0].Tags[?Key==`Version`].Value' \
             --output text \
             --region "$AWS_REGION" 2>/dev/null || echo "unknown")
         
@@ -162,7 +162,7 @@ validate_infrastructure() {
         local healthy_targets
         healthy_targets=$(aws elbv2 describe-target-health \
             --target-group-arn "$target_groups" \
-            --query 'TargetHealthDescriptions[?TargetHealth.State==`healthy`].Target.Id' \
+            --query $'TargetHealthDescriptions[?TargetHealth.State==`healthy`].Target.Id' \
             --output text \
             --region "$AWS_REGION" | wc -w)
         
