@@ -17,12 +17,6 @@ if ! command -v terraform &> /dev/null; then
     exit 1
 fi
 
-# Check if AWS CLI is configured
-if ! aws sts get-caller-identity &> /dev/null; then
-    echo "❌ Error: AWS CLI is not configured. Please run 'aws configure' first"
-    exit 1
-fi
-
 echo "✅ Prerequisites check passed"
 
 # Navigate to bootstrap directory
@@ -47,15 +41,6 @@ terraform init
 # Plan the deployment
 echo "📋 Planning the deployment..."
 terraform plan
-
-# Ask for confirmation
-echo ""
-read -p "Do you want to apply these changes? (y/N): " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "❌ Deployment cancelled"
-    exit 1
-fi
 
 # Apply the configuration
 echo "🚀 Deploying OIDC configuration..."
