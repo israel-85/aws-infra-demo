@@ -49,8 +49,8 @@ resource "aws_security_group" "ec2" {
   # Allow HTTP traffic from ALB only
   ingress {
     description     = "HTTP from ALB"
-    from_port       = 3000
-    to_port         = 3000
+    from_port       = 80
+    to_port         = 80
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
   }
@@ -177,45 +177,6 @@ resource "aws_iam_role" "ec2_role" {
   }
 }
 
-# IAM Policy for EC2 instances to access Secrets Manager
-resource "aws_iam_policy" "ec2_secrets_policy" {
-  name        = "${var.project_name}-${var.environment}-ec2-secrets-policy"
-  description = "Policy for EC2 instances to access Secrets Manager"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "secretsmanager:GetSecretValue",
-          "secretsmanager:DescribeSecret"
-        ]
-        Resource = length(var.secret_arns) > 0 ? var.secret_arns : [
-          "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/${var.environment}/*"
-        ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "secretsmanager:ListSecrets"
-        ]
-        Resource = "*"
-        Condition = {
-          StringLike = {
-            "secretsmanager:Name" = "${var.project_name}/${var.environment}/*"
-          }
-        }
-      }
-    ]
-  })
-
-  tags = {
-    Name        = "${var.project_name}-${var.environment}-ec2-secrets-policy"
-    Environment = var.environment
-    Project     = var.project_name
-  }
-}
 
 # IAM Policy for EC2 instances to access S3 artifacts
 resource "aws_iam_policy" "ec2_s3_policy" {
@@ -287,10 +248,6 @@ resource "aws_iam_policy" "ec2_cloudwatch_policy" {
 }
 
 # Attach policies to EC2 role
-resource "aws_iam_role_policy_attachment" "ec2_secrets_attachment" {
-  role       = aws_iam_role.ec2_role.name
-  policy_arn = aws_iam_policy.ec2_secrets_policy.arn
-}
 
 resource "aws_iam_role_policy_attachment" "ec2_s3_attachment" {
   role       = aws_iam_role.ec2_role.name

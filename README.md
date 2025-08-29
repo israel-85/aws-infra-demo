@@ -11,8 +11,6 @@ This repository demonstrates a complete AWS infrastructure setup using Terraform
 - **EC2 instances** in Auto Scaling Groups for staging and production
 - **Security Groups** implementing least privilege access
 - **S3 buckets** for static assets and build artifacts
-- **AWS Secrets Manager** with automatic rotation and multiple secret types
-- **Lambda functions** for custom secret rotation logic
 - **NAT Gateways** for outbound internet access from private subnets
 
 ### CI/CD Pipeline
@@ -35,7 +33,6 @@ This repository demonstrates a complete AWS infrastructure setup using Terraform
 │   │   ├── compute/         # EC2, ALB, Auto Scaling
 │   │   ├── security/        # Security groups, IAM
 │   │   ├── storage/         # S3 buckets
-│   │   └── secrets/         # AWS Secrets Manager with rotation
 │   ├── environments/        # Environment-specific configurations
 │   │   ├── staging/         # Staging environment
 │   │   └── production/      # Production environment
@@ -53,7 +50,7 @@ This repository demonstrates a complete AWS infrastructure setup using Terraform
 
 Before deploying this infrastructure, ensure you have:
 
-1. **AWS Account** with appropriate permissions for VPC, EC2, ALB, S3, and Secrets Manager
+1. **AWS Account** with appropriate permissions for VPC, EC2, ALB, and S3
 2. **AWS CLI** configured with credentials (for local development and setup)
 3. **Terraform** >= 1.6.0 installed locally
 4. **Docker** (optional) for local testing of containerized applications
@@ -64,11 +61,9 @@ Before deploying this infrastructure, ensure you have:
 
 This project demonstrates a production-ready AWS infrastructure setup with:
 
-- ✅ **Modular Terraform infrastructure** with networking, compute, security, storage, and secrets modules
+- ✅ **Modular Terraform infrastructure** with networking, compute, security, and storage modules
 - ✅ **Sample Nginx static application** with health endpoints and security headers
 - ✅ **GitHub Actions CI/CD pipeline** with security scanning and automated deployment
-- ✅ **AWS Secrets Manager integration** with automatic rotation and multiple secret types
-- ✅ **Lambda-based secret rotation** with customizable rotation intervals
 - ✅ **Comprehensive test suites** (HTML validation, smoke tests) for static content validation
 - ✅ **Deployment metadata management** with status tracking and audit trails
 - ✅ **Automatic rollback automation** with failure detection and recovery workflows
@@ -118,59 +113,6 @@ The CI/CD pipeline is configured with the following permissions:
 
 These permissions enable secure authentication with AWS services and repository access during pipeline execution.
 
-## Secrets Management Configuration
-
-The secrets module supports comprehensive secret management with the following features:
-
-### Secret Types
-
-1. **Application Configuration** (`app-config`)
-   - Non-sensitive application settings
-   - Feature flags and configuration parameters
-   - Always created for each environment
-2. **API Keys** (`api-keys`)
-   - External service credentials and API tokens
-   - Optional creation via `create_api_keys_secret` variable
-   - Centralized management of third-party integrations
-
-### Rotation Configuration
-
-```hcl
-# Enable automatic rotation for application config
-enable_rotation = true
-rotation_days = 30
-
-# Enable database credential rotation
-enable_db_rotation = true
-db_rotation_days = 30
-
-# Create Lambda function for custom rotation logic
-create_rotation_lambda = true
-
-# Configure recovery window
-recovery_window_in_days = 7
-```
-
-### Rotation Lambda Function
-
-The secrets module includes a Python-based Lambda function for custom secret rotation:
-
-- **Runtime**: Python 3.9
-- **Rotation Steps**: Implements AWS Secrets Manager 4-step rotation process
-  - `createSecret`: Generate new secret version
-  - `setSecret`: Configure services to use new secret
-  - `testSecret`: Validate new secret functionality
-  - `finishSecret`: Promote new secret to current version
-- **Custom Logic**: Extensible rotation logic for different secret types
-- **Error Handling**: Comprehensive logging and error recovery
-- **IAM Permissions**: Least privilege access to Secrets Manager and CloudWatch
-
-### Security Features
-
-- **Recovery Protection**: 7-day recovery window (configurable)
-- **Automatic Rotation**: Lambda-based rotation with customizable intervals
-- **Environment Isolation**: Separate secrets per environment
-- **Least Privilege Access**: IAM policies scoped to specific secret ARNs
 
 ## Deployment Guide
 
@@ -508,24 +450,14 @@ Each deployment creates comprehensive metadata for tracking and rollback purpose
 ./scripts/deployment-metadata.sh cleanup -e production -d 30
 ```
 
-### Secret Management
+### Security Configuration
 
-- **No plain text secrets** in repository or configurations
-- **AWS Secrets Manager** for centralized secret storage with multiple secret types
-- **Automatic Rotation**: Lambda-based secret rotation with configurable intervals (30-day default)
-- **Multiple Secret Categories**:
-  - Application configuration secrets
-  - Database credentials (separate secret)
-  - API keys and external service credentials
-  - No long-lived AWS credentials stored in GitHub secrets
-  - Short-lived tokens with automatic rotation
-  - Scoped permissions based on repository and branch
+- **No long-lived AWS credentials** stored in GitHub secrets  
+- **JWT-based authentication** with short-lived tokens and automatic rotation
 - **IAM roles** with least privilege access for all AWS services
 - **Multi-factor authentication** for sensitive operations
-- **Terraform references** to secrets without exposing values
-- **Environment-specific secrets** with proper access controls
-- **Recovery Protection**: 7-day recovery window to prevent accidental deletion
-- **Rotation Lambda**: Python-based Lambda function for custom rotation logic
+- **Environment-specific access controls** with proper permission boundaries
+- **Scoped permissions** based on repository and branch
 
 ### Network Security
 
@@ -650,14 +582,6 @@ curl https://your-alb-dns/
 # Test static content serving
 # The main page serves a responsive HTML application
 
-# Check secret rotation status
-aws secretsmanager describe-secret --secret-id aws-infra-demo/production/app-config
-
-# Manually trigger secret rotation
-aws secretsmanager rotate-secret --secret-id aws-infra-demo/production/app-config
-
-# View secret rotation history
-aws secretsmanager get-secret-value --secret-id aws-infra-demo/production/app-config --version-stage AWSPENDING
 ```
 
 #### Deployment and Rollback Issues
@@ -685,21 +609,6 @@ aws s3 ls s3://aws-infra-demo-artifacts/rollbacks/production/ --recursive
 ./scripts/deployment-metadata.sh cleanup -e production -d 30
 ```
 
-#### Secret Management Issues
-
-```bash
-# Check secret access permissions
-aws secretsmanager get-secret-value --secret-id aws-infra-demo/production/app-config
-
-# View rotation Lambda logs
-aws logs tail /aws/lambda/aws-infra-demo-production-secret-rotation --follow
-
-# Check rotation Lambda function status
-aws lambda get-function --function-name aws-infra-demo-production-secret-rotation
-
-# Test secret rotation manually
-aws secretsmanager rotate-secret --secret-id aws-infra-demo/production/app-config --force-rotate-immediately
-```
 
 ### Support and Maintenance
 
@@ -749,8 +658,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - **Application Load Balancer** with health checks
 - **EC2** with Auto Scaling Groups
 - **S3** for artifacts and static assets
-- **AWS Secrets Manager** with automatic rotation capabilities
-- **Lambda** for custom secret rotation logic (Python 3.9)
 - **CloudWatch** for monitoring and logging
 
 ## Application Monitoring Endpoints
@@ -813,5 +720,4 @@ Basic service metrics for monitoring:
 - [Terraform Best Practices](https://www.terraform.io/docs/cloud/guides/recommended-practices/index.html)
 - [GitHub Actions Documentation](https://docs.github.com/en/actions)
 - [Nginx Security Best Practices](https://nginx.org/en/docs/http/ngx_http_ssl_module.html)
-- [AWS Secrets Manager Documentation](https://docs.aws.amazon.com/secretsmanager/)
 - [GitHub Environment Protection Rules](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment)

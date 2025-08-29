@@ -72,12 +72,11 @@ These rules ensure maintainability, safety, and developer velocity.
 
 ### Application Architecture (`app/`)
 
-- **Express.js server** with comprehensive middleware stack
-- **AWS SDK v3 integration** using modern async/await patterns with `SecretsManagerClient`
-- **Health check endpoints** (`/health`, `/ready`, `/metrics`) for monitoring and load balancer integration
-- **Secrets Service** with caching, automatic refresh, and multiple secret types support
-- **Structured logging** with Winston-compatible logger and Morgan middleware
-- **Comprehensive error handling** with error counting and sanitization
+- **Nginx static web server** serving HTML content
+- **Health check endpoints** (`/health`, `/ready`, `/metrics`) built into nginx configuration
+- **Environment-based deployment** with template processing for staging/production
+- **Static file optimization** with gzip compression and caching headers
+- **Security headers** including X-Frame-Options, X-Content-Type-Options, and XSS protection
 
 ### CI/CD Pipeline Features
 
@@ -94,7 +93,6 @@ These rules ensure maintainability, safety, and developer velocity.
 - **Compute**: ALB + EC2 Auto Scaling Groups with health checks
 - **Security**: IAM roles, security groups with least privilege principles
 - **Storage**: S3 buckets with lifecycle policies for artifacts and state
-- **Secrets**: AWS Secrets Manager with Lambda-based rotation (Python 3.9)
 - **GitHub OIDC**: JWT-based authentication for secure CI/CD pipeline access
 
 ### Infrastructure Configuration
@@ -136,12 +134,12 @@ These rules ensure maintainability, safety, and developer velocity.
 
 ## Security and Best Practices
 
-### Secret Management
+### Static Content Management
 
-- No plain text secrets in code or configuration files
-- AWS Secrets Manager integration with three secret types: app-config, database-credentials, api-keys
-- Automatic secret rotation with Lambda functions (30-day intervals)
-- Environment-specific secret isolation
+- No sensitive configuration stored in code or static files
+- Environment-specific content processing during deployment
+- Template-based HTML generation with environment variables
+- Secure deployment artifact distribution via S3
 
 ### Authentication and Authorization
 
@@ -160,10 +158,10 @@ These rules ensure maintainability, safety, and developer velocity.
 
 ### Application Endpoints
 
-- **`GET /health`**: Comprehensive health check with service status, metrics, and environment info
-- **`GET /ready`**: Lightweight readiness check for load balancer health checks
-- **`GET /metrics`**: Detailed performance metrics including memory, CPU, request counts, and error rates
-- **`GET /api/secrets/health`**: Secrets Manager service health validation
+- **`GET /health`**: Basic health check with service status and timestamp
+- **`GET /ready`**: Lightweight readiness check for load balancer health checks  
+- **`GET /metrics`**: Basic service metrics with nginx status and timestamp
+- **`GET /`**: Main application serving environment-specific HTML content
 
 ### Deployment Tracking
 
@@ -205,11 +203,11 @@ terraform force-unlock <lock-id>
 
 ### Application Stack
 
-- **Node.js**: >= 18.0.0 (specified in package.json engines)
-- **Express.js**: ^4.18.2 with security middleware (Helmet, CORS, Morgan)
-- **AWS SDK**: `@aws-sdk/client-secrets-manager` for modern AWS integration
-- **Testing**: Jest ^29.7.0 with SuperTest for API testing
-- **Linting**: ESLint ^8.53.0 with Standard configuration
+- **Node.js**: >= 18.0.0 (for build and validation tooling)
+- **Nginx**: Latest stable for static file serving
+- **HTML/CSS/JavaScript**: Static web technologies
+- **Testing**: Basic HTML validation and smoke tests
+- **Deployment**: Bash-based deployment scripts with nginx configuration
 
 ### CI/CD Tools
 

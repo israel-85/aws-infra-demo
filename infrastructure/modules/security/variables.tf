@@ -28,8 +28,3 @@ variable "aws_account_id" {
   type        = string
 }
 
-variable "secret_arns" {
-  description = "List of secret ARNs that EC2 instances need access to"
-  type        = list(string)
-  default     = []
-}

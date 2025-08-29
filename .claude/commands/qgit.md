@@ -3,7 +3,7 @@ description: Add all changes to staging, create a commit, and push to remote
 allowed-tools: ["Read", "WebFetch", "Bash"]
 ---
 
-Add all changes to staging, create a commit, and push to remote.
+Add the specific changes to staging, create a commit, and push to remote.
 
 Follow this checklist for writing your commit message:
 
