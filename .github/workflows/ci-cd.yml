@@ -48,7 +48,7 @@ jobs:
           
           # Extract account ID from role ARN
           ROLE_ARN="${{ secrets.AWS_ROLE_TO_ASSUME }}"
-          ACCOUNT_ID=$(echo "$ROLE_ARN" | sed 's/.*:::\([0-9]*\):.*/\1/')
+          ACCOUNT_ID=$(echo "$ROLE_ARN" | sed 's/.*::\([0-9]*\):.*/\1/')
           
           echo "🔑 Role ARN: $ROLE_ARN"
           echo "🆔 Account ID: $ACCOUNT_ID"
