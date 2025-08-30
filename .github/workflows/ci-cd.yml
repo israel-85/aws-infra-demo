@@ -337,21 +337,21 @@ jobs:
           ACCOUNT_ID="${{ needs.validate-oidc-setup.outputs.account_id }}"
           BUCKET_NAME="aws-infra-demo-artifacts-${ACCOUNT_ID}-${{ github.run_id }}"
           
-          echo "🪣 Creating S3 artifacts bucket: $BUCKET_NAME"
+          echo "🪣 Creating S3 artifacts bucket: ${BUCKET_NAME}"
           
           # Create bucket (idempotent operation)
           # Note: us-east-1 doesn't use LocationConstraint parameter
           if [[ "${{ env.AWS_REGION }}" == "us-east-1" ]]; then
-            CREATE_BUCKET_CMD="aws s3api create-bucket --bucket $BUCKET_NAME --region ${{ env.AWS_REGION }}"
+            CREATE_BUCKET_CMD="aws s3api create-bucket --bucket ${BUCKET_NAME} --region ${{ env.AWS_REGION }}"
           else
-            CREATE_BUCKET_CMD="aws s3api create-bucket --bucket $BUCKET_NAME --region ${{ env.AWS_REGION }} --create-bucket-configuration LocationConstraint=${{ env.AWS_REGION }}"
+            CREATE_BUCKET_CMD="aws s3api create-bucket --bucket ${BUCKET_NAME} --region ${{ env.AWS_REGION }} --create-bucket-configuration LocationConstraint=${{ env.AWS_REGION }}"
           fi
           
           if eval "$CREATE_BUCKET_CMD" 2>/dev/null || \
-             aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
-            echo "✅ Bucket $BUCKET_NAME is ready"
+             aws s3api head-bucket --bucket "${BUCKET_NAME}" 2>/dev/null; then
+            echo "✅ Bucket ${BUCKET_NAME} is ready"
           else
-            echo "❌ Failed to create or access bucket $BUCKET_NAME"
+            echo "❌ Failed to create or access bucket ${BUCKET_NAME}"
             exit 1
           fi
           
@@ -389,16 +389,16 @@ jobs:
           
           # Apply lifecycle policy
           if aws s3api put-bucket-lifecycle-configuration \
-            --bucket "$BUCKET_NAME" \
+            --bucket "${BUCKET_NAME}" \
             --lifecycle-configuration file://lifecycle-policy.json; then
-            echo "✅ Lifecycle policy applied to $BUCKET_NAME"
+            echo "✅ Lifecycle policy applied to ${BUCKET_NAME}"
           else
             echo "⚠️  Warning: Failed to apply lifecycle policy (bucket still functional)"
           fi
           
           # Set output for other jobs
-          echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
-          echo "🎯 Artifacts bucket configured: $BUCKET_NAME"
+          echo "bucket_name=${BUCKET_NAME}" >> $GITHUB_OUTPUT
+          echo "🎯 Artifacts bucket configured: ${BUCKET_NAME}"
 
       - name: Upload artifacts to S3
         run: |
