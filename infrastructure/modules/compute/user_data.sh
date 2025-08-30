@@ -4,14 +4,8 @@
 yum update -y
 
 # Install required packages
-yum install -y docker git aws-cli nginx
+yum install -y git aws-cli nginx
 
-# Start and enable Docker
-systemctl start docker
-systemctl enable docker
-
-# Add ec2-user to docker group
-usermod -a -G docker ec2-user
 
 # Install CloudWatch agent
 wget https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm
@@ -120,7 +114,7 @@ cat > /opt/deploy.sh << 'EOF'
 #!/bin/bash
 
 DEPLOYMENT_PACKAGE=$1
-ENVIRONMENT=${2:-staging}
+ENVIRONMENT=$${2:-staging}
 
 if [ -z "$DEPLOYMENT_PACKAGE" ]; then
   echo "Usage: $0 <deployment-package-url> [environment]"

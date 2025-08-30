@@ -1,5 +1,5 @@
 ---
-description: Add all changes to staging, create a commit, and push to remote
+description: Add the specific changes to staging, create a commit, and push to remote
 allowed-tools: ["Read", "WebFetch", "Bash"]
 ---
 
@@ -8,7 +8,6 @@ Add the specific changes to staging, create a commit, and push to remote.
 Follow this checklist for writing your commit message:
 
 - SHOULD use Conventional Commits format: https://www.conventionalcommits.org/en/v1.0.0
-- SHOULD check gihub workflow status with gh commands
 - SHOULD NOT refer to Claude or Anthropic in the commit message.
 - SHOULD structure commit message as follows:
 <type>[optional scope]: <description>
