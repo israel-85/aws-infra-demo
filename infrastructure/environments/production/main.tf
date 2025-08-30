@@ -81,14 +81,6 @@ module "storage" {
   enable_cloudfront = var.enable_cloudfront
 }
 
-# Secrets Module
-module "secrets" {
-  source = "../../modules/secrets"
-
-  project_name = var.project_name
-  environment  = var.environment
-  tags         = local.common_tags
-}
 
 # Compute Module
 module "compute" {
