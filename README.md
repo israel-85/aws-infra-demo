@@ -291,8 +291,9 @@ The system tracks comprehensive deployment metadata:
 #### Application Rollback
 
 ```bash
-# List recent deployments
-aws s3 ls s3://aws-infra-demo-artifacts/deployments/
+# List recent deployments (bucket name is dynamically generated)
+# Replace {bucket-name} with the actual artifacts bucket from your CI/CD run
+aws s3 ls s3://{bucket-name}/deployments/
 
 # Check deployment metadata
 ./scripts/deployment-metadata.sh list -e production
@@ -379,10 +380,15 @@ curl -X POST \
 
 ### S3 Bucket Structure
 
-The deployment and rollback system uses the following S3 structure:
+The deployment and rollback system uses a dynamically named S3 bucket with the following structure:
+
+**Bucket Naming Convention:**
+- Format: `aws-infra-demo-artifacts-{account-id}-{github-run-id}`
+- Example: `aws-infra-demo-artifacts-123456789012-987654321`
+- Each CI/CD run creates a unique bucket to prevent naming conflicts
 
 ```text
-aws-infra-demo-artifacts/
+aws-infra-demo-artifacts-{account-id}-{run-id}/
 ├── builds/                          # Build artifacts from CI/CD
 │   └── deployment-{git_sha}.tar.gz
 ├── deployments/
@@ -547,8 +553,8 @@ terraform force-unlock <lock-id>
 # Check deployment metadata and status
 ./scripts/deployment-metadata.sh list -e production
 
-# View recent deployment artifacts
-aws s3 ls s3://aws-infra-demo-artifacts/builds/ --recursive
+# View recent deployment artifacts (replace {bucket-name} with actual bucket)
+aws s3 ls s3://{bucket-name}/builds/ --recursive
 
 # Check deployment metadata for specific version
 ./scripts/deployment-metadata.sh list -e production
@@ -590,11 +596,11 @@ curl https://your-alb-dns/
 # Check deployment metadata and history
 ./scripts/deployment-metadata.sh list -e production
 
-# View specific deployment metadata
-aws s3 cp s3://aws-infra-demo-artifacts/deployments/production/metadata-{git_sha}.json -
+# View specific deployment metadata (replace {bucket-name} with actual bucket)
+aws s3 cp s3://{bucket-name}/deployments/production/metadata-{git_sha}.json -
 
-# Check rollback history
-aws s3 ls s3://aws-infra-demo-artifacts/rollbacks/production/ --recursive
+# Check rollback history (replace {bucket-name} with actual bucket)
+aws s3 ls s3://{bucket-name}/rollbacks/production/ --recursive
 
 # Test rollback scripts
 ./scripts/test-rollback-scripts.sh

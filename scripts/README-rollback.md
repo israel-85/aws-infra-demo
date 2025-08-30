@@ -114,8 +114,8 @@ The scripts require the following AWS permissions:
                 "s3:DeleteObject"
             ],
             "Resource": [
-                "arn:aws:s3:::aws-infra-demo-artifacts",
-                "arn:aws:s3:::aws-infra-demo-artifacts/*"
+                "arn:aws:s3:::aws-infra-demo-artifacts-*",
+                "arn:aws:s3:::aws-infra-demo-artifacts-*/*"
             ]
         },
         {
@@ -192,7 +192,7 @@ The scripts use structured metadata stored in S3 to track deployments:
 The rollback system uses the following S3 structure:
 
 ```text
-aws-infra-demo-artifacts/
+aws-infra-demo-artifacts-{account-id}-{run-id}/
 ├── deployments/
 │   ├── staging/
 │   │   ├── deployment-{git_sha}.tar.gz

@@ -40,6 +40,30 @@ jobs:
           role-session-name: GitHubActions-Rollback-Monitor
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Discover artifacts bucket
+        id: bucket-discovery
+        run: |
+          echo "🔍 Discovering artifacts bucket for project: ${{ env.PROJECT_NAME }}"
+          
+          # Get current AWS account ID
+          ACCOUNT_ID=$(aws sts get-caller-identity --query 'Account' --output text)
+          echo "📋 Account ID: $ACCOUNT_ID"
+          
+          # Look for bucket with the expected naming pattern
+          BUCKET_PREFIX="${{ env.PROJECT_NAME }}-artifacts-${ACCOUNT_ID}"
+          
+          # List buckets and find the most recent artifacts bucket
+          BUCKET_NAME=$(aws s3api list-buckets --query 'Buckets[?starts_with(Name, `'$BUCKET_PREFIX'`)].Name' --output text | sort | tail -1)
+          
+          if [[ -n "$BUCKET_NAME" ]]; then
+            echo "✅ Found artifacts bucket: $BUCKET_NAME"
+            echo "ARTIFACTS_BUCKET=$BUCKET_NAME" >> $GITHUB_ENV
+          else
+            echo "❌ No artifacts bucket found with prefix: $BUCKET_PREFIX"
+            echo "⚠️  Monitor will use fallback bucket discovery during checks"
+            echo "ARTIFACTS_BUCKET=" >> $GITHUB_ENV
+          fi
+
       - name: Check deployment status
         run: |
           chmod +x scripts/*.sh
@@ -49,6 +73,7 @@ jobs:
             echo "🔍 Checking $env deployment status..."
             
             # Get recent deployments
+            export ARTIFACTS_BUCKET="$ARTIFACTS_BUCKET"
             recent_deployments=$(./scripts/deployment-metadata.sh list -e "$env" | head -5)
             
             if [[ -z "$recent_deployments" ]]; then
@@ -66,7 +91,11 @@ jobs:
               echo "$failed_deployments"
               
               # Check if automatic rollback was already triggered
-              rollback_files=$(aws s3 ls "s3://aws-infra-demo-artifacts/rollbacks/$env/" --region "$AWS_REGION" 2>/dev/null | tail -3)
+              if [[ -n "$ARTIFACTS_BUCKET" ]]; then
+                rollback_files=$(aws s3 ls "s3://$ARTIFACTS_BUCKET/rollbacks/$env/" --region "$AWS_REGION" 2>/dev/null | tail -3)
+              else
+                rollback_files=""
+              fi
               
               if [[ -n "$rollback_files" ]]; then
                 echo "ℹ️  Recent rollback activity detected"
@@ -125,10 +154,12 @@ jobs:
           fi
           
           # Check S3 bucket accessibility
-          if aws s3 ls "s3://aws-infra-demo-artifacts/" --region "$AWS_REGION" &>/dev/null; then
-            echo "✅ S3 artifacts bucket accessible"
+          if [[ -n "$ARTIFACTS_BUCKET" ]] && aws s3 ls "s3://$ARTIFACTS_BUCKET/" --region "$AWS_REGION" &>/dev/null; then
+            echo "✅ S3 artifacts bucket accessible: $ARTIFACTS_BUCKET"
+          elif [[ -z "$ARTIFACTS_BUCKET" ]]; then
+            echo "⚠️  No artifacts bucket discovered - monitoring limited"
           else
-            echo "❌ S3 artifacts bucket not accessible"
+            echo "❌ S3 artifacts bucket not accessible: $ARTIFACTS_BUCKET"
             exit 1
           fi
           
@@ -151,8 +182,12 @@ jobs:
           EOF
           )
           
-          echo "$monitoring_report" | aws s3 cp - \
-            "s3://aws-infra-demo-artifacts/monitoring/rollback-monitor-$(date +%Y%m%d-%H%M%S).json" \
-            --region "$AWS_REGION" || echo "Failed to upload monitoring report"
+          if [[ -n "$ARTIFACTS_BUCKET" ]]; then
+            echo "$monitoring_report" | aws s3 cp - \
+              "s3://$ARTIFACTS_BUCKET/monitoring/rollback-monitor-$(date +%Y%m%d-%H%M%S).json" \
+              --region "$AWS_REGION" || echo "Failed to upload monitoring report"
+          else
+            echo "⚠️  No artifacts bucket available - monitoring report not uploaded"
+          fi
           
           echo "📊 Monitoring report generated"

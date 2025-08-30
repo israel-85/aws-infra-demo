@@ -55,6 +55,7 @@ jobs:
       can_rollback: ${{ steps.validation.outputs.can_rollback }}
       target_version: ${{ steps.validation.outputs.target_version }}
       target_sha: ${{ steps.validation.outputs.target_sha }}
+      artifacts_bucket: ${{ steps.bucket-discovery.outputs.bucket_name }}
     
     steps:
       - name: Checkout code
@@ -66,6 +67,40 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           role-session-name: GitHubActions-Rollback-Validation
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Discover artifacts bucket
+        id: bucket-discovery
+        run: |
+          echo "🔍 Discovering artifacts bucket for project: ${{ env.PROJECT_NAME }}"
+          
+          # Get current AWS account ID
+          ACCOUNT_ID=$(aws sts get-caller-identity --query 'Account' --output text)
+          echo "📋 Account ID: $ACCOUNT_ID"
+          
+          # Look for bucket with the expected naming pattern
+          # Try to find buckets with the pattern: aws-infra-demo-artifacts-{account-id}-{run-id}
+          BUCKET_PREFIX="${{ env.PROJECT_NAME }}-artifacts-${ACCOUNT_ID}"
+          
+          # List buckets and find the most recent artifacts bucket
+          BUCKET_NAME=$(aws s3api list-buckets --query 'Buckets[?starts_with(Name, `'$BUCKET_PREFIX'`)].Name' --output text | sort | tail -1)
+          
+          if [[ -n "$BUCKET_NAME" ]]; then
+            echo "✅ Found artifacts bucket: $BUCKET_NAME"
+            
+            # Verify bucket has expected structure by checking for builds/ folder
+            if aws s3 ls "s3://$BUCKET_NAME/builds/" &>/dev/null || aws s3 ls "s3://$BUCKET_NAME/deployments/" &>/dev/null; then
+              echo "✅ Bucket structure validated"
+              echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
+            else
+              echo "❌ Bucket found but missing expected structure (builds/ or deployments/ folders)"
+              exit 1
+            fi
+          else
+            echo "❌ No artifacts bucket found with prefix: $BUCKET_PREFIX"
+            echo "Available buckets:"
+            aws s3api list-buckets --query 'Buckets[].Name' --output text | tr '\t' '\n' | head -10
+            exit 1
+          fi
 
       - name: Validate rollback prerequisites
         id: validation
@@ -89,6 +124,7 @@ jobs:
             echo "🎯 Using specified target version: $target_version"
           else
             # Get previous successful version
+            export ARTIFACTS_BUCKET="${{ steps.bucket-discovery.outputs.bucket_name }}"
             target_info=$(./scripts/deployment-metadata.sh list -e "${{ inputs.environment }}" | grep "success" | head -2 | tail -1)
             if [[ -z "$target_info" ]]; then
               echo "❌ No previous successful deployment found for rollback"
@@ -99,11 +135,12 @@ jobs:
           fi
           
           # Get target SHA from deployment metadata
-          target_sha=$(aws s3 ls s3://aws-infra-demo-artifacts/deployments/${{ inputs.environment }}/ --recursive | \
+          BUCKET_NAME="${{ steps.bucket-discovery.outputs.bucket_name }}"
+          target_sha=$(aws s3 ls s3://$BUCKET_NAME/deployments/${{ inputs.environment }}/ --recursive | \
             grep "metadata-.*\.json" | \
             while read -r line; do
               key=$(echo "$line" | awk '{print $4}')
-              metadata=$(aws s3 cp "s3://aws-infra-demo-artifacts/$key" - 2>/dev/null || echo "{}")
+              metadata=$(aws s3 cp "s3://$BUCKET_NAME/$key" - 2>/dev/null || echo "{}")
               version=$(echo "$metadata" | jq -r '.version // "unknown"')
               if [[ "$version" == "$target_version" ]]; then
                 echo "$metadata" | jq -r '.git_sha // "unknown"'
@@ -196,7 +233,7 @@ jobs:
           )
           
           echo "$rollback_metadata" | aws s3 cp - \
-            "s3://aws-infra-demo-artifacts/rollbacks/staging/rollback-$(date +%Y%m%d-%H%M%S).json"
+            "s3://${{ needs.validate-rollback.outputs.artifacts_bucket }}/rollbacks/staging/rollback-$(date +%Y%m%d-%H%M%S).json"
 
   rollback-production:
     name: Rollback Production Environment
@@ -294,7 +331,7 @@ jobs:
           )
           
           echo "$rollback_metadata" | aws s3 cp - \
-            "s3://aws-infra-demo-artifacts/rollbacks/production/rollback-$(date +%Y%m%d-%H%M%S).json"
+            "s3://${{ needs.validate-rollback.outputs.artifacts_bucket }}/rollbacks/production/rollback-$(date +%Y%m%d-%H%M%S).json"
 
       - name: Notify rollback completion
         if: always() && inputs.dry_run != true
