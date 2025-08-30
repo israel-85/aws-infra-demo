@@ -333,30 +333,101 @@ jobs:
       - name: Create unique S3 artifacts bucket
         id: bucket-setup
         run: |
+          echo "🔧 DEBUG: Starting S3 bucket creation process..."
+          
+          # Debug: Show AWS CLI version and configuration
+          echo "📊 AWS CLI Version:"
+          aws --version || echo "❌ AWS CLI not available"
+          
+          echo "🔍 AWS Configuration:"
+          aws sts get-caller-identity || echo "❌ AWS authentication failed"
+          
           # Generate unique bucket name using account ID and run ID
           ACCOUNT_ID="${{ needs.validate-oidc-setup.outputs.account_id }}"
-          BUCKET_NAME="aws-infra-demo-artifacts-${ACCOUNT_ID}-${{ github.run_id }}"
+          AWS_REGION="${{ env.AWS_REGION }}"
+          RUN_ID="${{ github.run_id }}"
           
-          echo "🪣 Creating S3 artifacts bucket: ${BUCKET_NAME}"
+          echo "🔧 DEBUG: Variable values:"
+          echo "  ACCOUNT_ID: '${ACCOUNT_ID}'"
+          echo "  AWS_REGION: '${AWS_REGION}'"
+          echo "  RUN_ID: '${RUN_ID}'"
           
-          # Create bucket (idempotent operation)
-          # Note: us-east-1 doesn't use LocationConstraint parameter
-          if [[ "${{ env.AWS_REGION }}" == "us-east-1" ]]; then
-            CREATE_BUCKET_CMD="aws s3api create-bucket --bucket ${BUCKET_NAME} --region ${{ env.AWS_REGION }}"
-          else
-            CREATE_BUCKET_CMD="aws s3api create-bucket --bucket ${BUCKET_NAME} --region ${{ env.AWS_REGION }} --create-bucket-configuration LocationConstraint=${{ env.AWS_REGION }}"
-          fi
-          
-          if eval "$CREATE_BUCKET_CMD" 2>/dev/null || \
-             aws s3api head-bucket --bucket "${BUCKET_NAME}" 2>/dev/null; then
-            echo "✅ Bucket ${BUCKET_NAME} is ready"
-          else
-            echo "❌ Failed to create or access bucket ${BUCKET_NAME}"
+          # Validate required variables
+          if [ -z "${ACCOUNT_ID}" ]; then
+            echo "❌ ERROR: ACCOUNT_ID is empty or undefined"
+            echo "💡 Check the validate-oidc-setup job outputs"
+            echo "💡 Verify role ARN format in AWS_ROLE_TO_ASSUME secret"
             exit 1
           fi
           
+          if [ -z "${AWS_REGION}" ]; then
+            echo "❌ ERROR: AWS_REGION is empty or undefined"
+            echo "💡 Check workflow environment variables"
+            exit 1
+          fi
+          
+          if [ -z "${RUN_ID}" ]; then
+            echo "❌ ERROR: RUN_ID is empty or undefined"
+            echo "💡 Check GitHub context variables"
+            exit 1
+          fi
+          
+          BUCKET_NAME="aws-infra-demo-artifacts-${ACCOUNT_ID}-${RUN_ID}"
+          echo "🪣 Target bucket name: ${BUCKET_NAME}"
+          
+          # Test S3 permissions before attempting bucket creation
+          echo "🔐 Testing S3 permissions..."
+          if aws s3 ls > /dev/null; then
+            echo "✅ S3 list permission confirmed"
+          else
+            echo "❌ ERROR: No S3 list permission"
+            echo "💡 Check IAM role permissions for s3:ListAllMyBuckets"
+            exit 1
+          fi
+          
+          # Create bucket (idempotent operation)
+          echo "🚀 Creating S3 bucket..."
+          if [[ "${AWS_REGION}" == "us-east-1" ]]; then
+            echo "🔧 DEBUG: Using us-east-1 bucket creation (no LocationConstraint)"
+            if aws s3api create-bucket --bucket "${BUCKET_NAME}" --region "${AWS_REGION}"; then
+              echo "✅ Bucket created successfully in us-east-1"
+            else
+              echo "❌ ERROR: Failed to create bucket in us-east-1"
+              echo "🔧 DEBUG: Checking if bucket already exists..."
+              if aws s3api head-bucket --bucket "${BUCKET_NAME}"; then
+                echo "✅ Bucket already exists and is accessible"
+              else
+                echo "❌ ERROR: Cannot create or access bucket ${BUCKET_NAME}"
+                echo "💡 Common causes:"
+                echo "  - Bucket name already taken globally"
+                echo "  - Insufficient IAM permissions (s3:CreateBucket)"
+                echo "  - AWS region configuration issues"
+                exit 1
+              fi
+            fi
+          else
+            echo "🔧 DEBUG: Using non-us-east-1 bucket creation with LocationConstraint=${AWS_REGION}"
+            if aws s3api create-bucket --bucket "${BUCKET_NAME}" --region "${AWS_REGION}" --create-bucket-configuration LocationConstraint="${AWS_REGION}"; then
+              echo "✅ Bucket created successfully in ${AWS_REGION}"
+            else
+              echo "❌ ERROR: Failed to create bucket in ${AWS_REGION}"
+              echo "🔧 DEBUG: Checking if bucket already exists..."
+              if aws s3api head-bucket --bucket "${BUCKET_NAME}"; then
+                echo "✅ Bucket already exists and is accessible"
+              else
+                echo "❌ ERROR: Cannot create or access bucket ${BUCKET_NAME}"
+                echo "💡 Common causes:"
+                echo "  - Bucket name already taken globally"
+                echo "  - Insufficient IAM permissions (s3:CreateBucket)"
+                echo "  - Invalid LocationConstraint for region ${AWS_REGION}"
+                exit 1
+              fi
+            fi
+          fi
+          
           # Configure lifecycle policy for automatic cleanup
-          cat > lifecycle-policy.json << 'EOF'
+          echo "🗂️ Creating lifecycle policy configuration..."
+          if cat > lifecycle-policy.json << 'EOF'
           {
             "Rules": [
               {
@@ -386,23 +457,112 @@ jobs:
             ]
           }
           EOF
+          then
+            echo "✅ Lifecycle policy file created successfully"
+          else
+            echo "❌ ERROR: Failed to create lifecycle policy file"
+            echo "💡 Check filesystem permissions"
+            exit 1
+          fi
           
-          # Apply lifecycle policy
+          # Validate the JSON syntax
+          echo "🔍 Validating lifecycle policy JSON syntax..."
+          if python3 -m json.tool lifecycle-policy.json > /dev/null; then
+            echo "✅ Lifecycle policy JSON is valid"
+          else
+            echo "❌ ERROR: Invalid JSON in lifecycle policy"
+            echo "🔧 DEBUG: Lifecycle policy content:"
+            cat lifecycle-policy.json || echo "❌ Cannot read lifecycle-policy.json"
+            exit 1
+          fi
+          
+          # Apply lifecycle policy with enhanced error handling
+          echo "📋 Applying lifecycle policy to bucket..."
           if aws s3api put-bucket-lifecycle-configuration \
             --bucket "${BUCKET_NAME}" \
             --lifecycle-configuration file://lifecycle-policy.json; then
-            echo "✅ Lifecycle policy applied to ${BUCKET_NAME}"
+            echo "✅ Lifecycle policy applied successfully to ${BUCKET_NAME}"
           else
-            echo "⚠️  Warning: Failed to apply lifecycle policy (bucket still functional)"
+            echo "❌ ERROR: Failed to apply lifecycle policy to ${BUCKET_NAME}"
+            echo "💡 Common causes:"
+            echo "  - Insufficient IAM permissions (s3:PutLifecycleConfiguration)"
+            echo "  - Bucket policy restrictions"
+            echo "  - Invalid lifecycle policy configuration"
+            echo "🔧 DEBUG: Checking bucket permissions..."
+            if aws s3api get-bucket-location --bucket "${BUCKET_NAME}"; then
+              echo "✅ Bucket is accessible for location check"
+            else
+              echo "❌ Cannot access bucket for location check"
+            fi
+            echo "⚠️  Bucket created but lifecycle policy failed - bucket still functional"
+            # Don't exit here as the bucket is still usable for the deployment
           fi
           
-          # Set output for other jobs
-          echo "bucket_name=${BUCKET_NAME}" >> $GITHUB_OUTPUT
-          echo "🎯 Artifacts bucket configured: ${BUCKET_NAME}"
+          # Verify the bucket is ready and set output
+          echo "🎯 Finalizing bucket setup..."
+          if aws s3api head-bucket --bucket "${BUCKET_NAME}"; then
+            echo "✅ Final bucket verification successful"
+            echo "bucket_name=${BUCKET_NAME}" >> $GITHUB_OUTPUT
+            echo "🎯 Artifacts bucket configured: ${BUCKET_NAME}"
+          else
+            echo "❌ ERROR: Final bucket verification failed"
+            echo "💡 Bucket may not be accessible for subsequent operations"
+            exit 1
+          fi
 
       - name: Upload artifacts to S3
         run: |
-          aws s3 cp deployment-${{ github.sha }}.tar.gz s3://${{ steps.bucket-setup.outputs.bucket_name }}/builds/deployment-${{ github.sha }}.tar.gz
+          echo "📦 Uploading deployment artifacts to S3..."
+          
+          BUCKET_NAME="${{ steps.bucket-setup.outputs.bucket_name }}"
+          SHA="${{ github.sha }}"
+          ARTIFACT_FILE="deployment-${SHA}.tar.gz"
+          S3_PATH="s3://${BUCKET_NAME}/builds/${ARTIFACT_FILE}"
+          
+          echo "🔧 DEBUG: Upload configuration:"
+          echo "  Bucket: ${BUCKET_NAME}"
+          echo "  SHA: ${SHA}"
+          echo "  Local file: ${ARTIFACT_FILE}"
+          echo "  S3 destination: ${S3_PATH}"
+          
+          # Verify local artifact exists
+          if [ ! -f "${ARTIFACT_FILE}" ]; then
+            echo "❌ ERROR: Deployment artifact not found: ${ARTIFACT_FILE}"
+            echo "💡 Check the build process in previous steps"
+            ls -la || echo "❌ Cannot list current directory"
+            exit 1
+          fi
+          
+          # Show artifact details
+          echo "📊 Artifact details:"
+          ls -lh "${ARTIFACT_FILE}"
+          
+          # Upload with enhanced error handling
+          if aws s3 cp "${ARTIFACT_FILE}" "${S3_PATH}"; then
+            echo "✅ Artifact uploaded successfully to ${S3_PATH}"
+            
+            # Verify upload
+            echo "🔍 Verifying uploaded artifact..."
+            if aws s3 ls "${S3_PATH}"; then
+              echo "✅ Artifact verification successful"
+            else
+              echo "❌ WARNING: Artifact upload may have failed (cannot verify)"
+            fi
+          else
+            echo "❌ ERROR: Failed to upload artifact to ${S3_PATH}"
+            echo "💡 Common causes:"
+            echo "  - Insufficient IAM permissions (s3:PutObject)"
+            echo "  - Bucket does not exist or is inaccessible"
+            echo "  - Network connectivity issues"
+            echo "  - Local file is corrupted or unreadable"
+            echo "🔧 DEBUG: Checking bucket accessibility..."
+            if aws s3 ls "s3://${BUCKET_NAME}/"; then
+              echo "✅ Bucket is accessible"
+            else
+              echo "❌ Cannot access bucket ${BUCKET_NAME}"
+            fi
+            exit 1
+          fi
 
   # Staging Deployment Job (Automatic from develop)
   deploy-staging:
